@@ -1,0 +1,60 @@
+/* base.css */
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
+
+:root{
+  --bg1: #f3f2ef;
+  --bg2: #eef4fb;
+  --bg3: #f9efe7;
+
+  --card: #ffffff;
+  --text: #0f172a;
+  --muted: #5a6270;
+
+  --border: #e7e3db;
+  --border-strong: #d7d1c7;
+
+  --primary: #0ea5a4;
+  --primary-hover: #0b8b8a;
+  --accent: #f59e0b;
+  --accent-soft: #fff4e5;
+
+  --danger-bg: #fdecec;
+  --danger-border: #f5b5b5;
+  --danger-text: #a73333;
+
+  --shadow: 0 28px 70px rgba(12, 22, 38, 0.14);
+  --shadow-soft: 0 10px 30px rgba(12, 22, 38, 0.08);
+  --radius: 20px;
+  --display-font: "Space Grotesk", "Instrument Sans", sans-serif;
+  --body-font: "Instrument Sans", "Space Grotesk", sans-serif;
+}
+
+*{ box-sizing: border-box; }
+html, body { height: 100%; }
+body{
+  margin: 0;
+  font-family: var(--body-font);
+  color: var(--text);
+  background:
+    radial-gradient(1000px 560px at 12% 8%, rgba(245, 158, 11, 0.16), transparent 60%),
+    radial-gradient(1100px 620px at 88% 0%, rgba(14, 165, 164, 0.18), transparent 60%),
+    linear-gradient(160deg, var(--bg2) 0%, var(--bg1) 55%, #f7f8fb 100%);
+  min-height: 100vh;
+}
+a{ color: inherit; text-decoration: none; }
+button, input{ font: inherit; }
+
+@keyframes floatIn{
+  from{ opacity: 0; transform: translateY(16px) scale(0.98); }
+  to{ opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes shimmer{
+  from{ background-position: 0% 50%; }
+  to{ background-position: 100% 50%; }
+}
+
+@keyframes glowPulse{
+  0%{ opacity: 0.65; transform: scale(0.98); }
+  100%{ opacity: 1; transform: scale(1); }
+}

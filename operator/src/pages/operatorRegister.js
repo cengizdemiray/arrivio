@@ -1,5 +1,5 @@
 // js/pages/operatorRegister.js
-import { auth } from '../firebaseClient.js';
+import { auth } from '../sevices/firebaseClient.js';
 import { createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
 import { doc, setDoc, serverTimestamp, getFirestore } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
