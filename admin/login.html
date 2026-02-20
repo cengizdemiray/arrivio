@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Login</title>
+
+  <link rel="stylesheet" href="./assets/css/base.css" />
+  <link rel="stylesheet" href="./assets/css/component.css" />
+  <link rel="stylesheet" href="./assets/css/pages/login.css" />
+</head>
+<body>
+  <main class="auth">
+    <section class="card" aria-label="Admin Login">
+
+      <!-- Icon -->
+      <div class="logo">
+        <div class="logo-badge" aria-hidden="true">
+          <!-- basit lock icon (inline svg) -->
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+            <path d="M17 10h-1V8a4 4 0 0 0-8 0v2H7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2Zm-7-2a2 2 0 1 1 4 0v2h-4V8Z" fill="currentColor"/>
+          </svg>
+        </div>
+      </div>
+
+      <h1 class="title">Admin Login</h1>
+      <p class="subtitle">Sign in to access the admin dashboard</p>
+
+      <!-- Error (gizli; JS ile açacağız) -->
+      <div id="errorBox" class="alert alert-error" role="alert" hidden>
+        Invalid credentials. Please check your email and password.
+      </div>
+
+      <form id="loginForm" class="form" novalidate>
+        <div class="field">
+          <label for="email">Email</label>
+          <input id="email" name="email" type="text" placeholder="admin@example.com" autocomplete="username" required />
+          <small class="hint" id="emailHint" hidden>Please enter your email.</small>
+        </div>
+
+        <div class="field">
+          <label for="password">Password</label>
+
+          <div class="input-wrap">
+            <input id="password" name="password" type="password" placeholder="••••••••" autocomplete="current-password" required />
+            <button class="icon-btn" type="button" id="togglePwd" aria-label="Show password">
+              <!-- eye icon -->
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M12 5c5.5 0 9.7 4.4 10.9 6.1.1.2.1.5 0 .7C21.7 13.6 17.5 18 12 18S2.3 13.6 1.1 11.8a.7.7 0 0 1 0-.7C2.3 9.4 6.5 5 12 5Zm0 11c3.9 0 7.2-3 8.6-4.6C19.2 9.8 15.9 7 12 7S4.8 9.8 3.4 11.4C4.8 13 8.1 16 12 16Zm0-8a3 3 0 1 1 0 6 3 3 0 0 1 0-6Z" fill="currentColor"/>
+              </svg>
+            </button>
+          </div>
+
+          <small class="hint" id="pwdHint" hidden>Please enter your password.</small>
+        </div>
+
+        <div class="row">
+          <label class="checkbox">
+            <input type="checkbox" id="remember" />
+            <span>Remember me</span>
+          </label>
+
+          <a class="link" href="#" onclick="return false;">Forgot password?</a>
+        </div>
+
+        <button class="btn btn-primary" type="submit">Sign In</button>
+
+        <div class="divider">
+          <span>or continue with</span>
+        </div>
+
+        <div class="providers">
+          <button class="btn btn-ghost" type="button">
+            <span class="provider-dot" aria-hidden="true"></span>
+            Google
+          </button>
+          <button class="btn btn-ghost" type="button">
+            <span class="provider-dot provider-dot--blue" aria-hidden="true"></span>
+            Microsoft
+          </button>
+        </div>
+
+        
+      </form>
+    </section>
+  </main>
+
+  <script type="module" src="./src/pages/login.js"></script>
+</body>
+</html>
