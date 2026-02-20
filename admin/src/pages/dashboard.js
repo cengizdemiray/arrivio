@@ -64,6 +64,24 @@ function setActive(viewKey) {
             })
             .catch(err => console.error('removeStation load error', err));
     }
+
+    if (viewKey === 'add-station') {
+    import('./addStation.js')
+      .then(mod => {
+        const root = document.getElementById('addStationRoot');
+        if (root && mod.initAddStation) mod.initAddStation(root);
+      })
+      .catch(err => console.error('addStation load error', err));
+  }
+
+  if (viewKey === 'block-carrier') {
+    import('./blockCarrier.js')
+      .then(mod => {
+        const root = document.getElementById('blockCarrierRoot');
+        if (root && mod.initBlockCarrier) mod.initBlockCarrier(root);
+      })
+      .catch(err => console.error('blockCarrier load error', err));
+  }
 }
 
 nav.addEventListener("click", (e) => {
