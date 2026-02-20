@@ -64,7 +64,7 @@ function setActive(viewKey) {
             })
             .catch(err => console.error('removeStation load error', err));
     }
-
+ 
     if (viewKey === 'add-station') {
     import('./addStation.js')
       .then(mod => {
@@ -81,6 +81,24 @@ function setActive(viewKey) {
         if (root && mod.initBlockCarrier) mod.initBlockCarrier(root);
       })
       .catch(err => console.error('blockCarrier load error', err));
+  }
+
+  if (viewKey === 'issue-form') {
+    import('./issueForm.js')
+      .then(mod => {
+        const root = document.getElementById('issueFormRoot');
+        if (root && mod.initIssueForm) mod.initIssueForm(root, { mode: 'view' });
+      })
+      .catch(err => console.error('issueForm load error', err));
+  }
+
+  if (viewKey === 'solve-issue') {
+    import('./issueForm.js')
+      .then(mod => {
+        const root = document.getElementById('solveIssueRoot');
+        if (root && mod.initIssueForm) mod.initIssueForm(root, { mode: 'solve' });
+      })
+      .catch(err => console.error('issueForm load error', err));
   }
 }
 
