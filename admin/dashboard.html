@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Arrivio - Admin</title>
+
+    <link rel="stylesheet" href="./assets/css/base.css" />
+    <link rel="stylesheet" href="./assets/css/component.css" />
+    <link rel="stylesheet" href="./assets/css/pages/admin.css" />
+</head>
+
+<body>
+    <div class="admin-shell">
+        <!-- Sidebar -->
+        <aside class="sidebar" aria-label="Admin navigation">
+            <div class="sidebar-top">
+                <div class="brand">
+                    <span class="brand-title">Admin</span>
+
+                </div>
+            </div>
+
+            <div class="sidebar-section">
+                <div class="sidebar-heading">
+                    <span>Admin Screens</span>
+
+                </div>
+
+                <nav class="nav" id="adminNav">
+
+                    <button class="nav-item" data-view="remove-station">
+                        <span class="nav-icon">🗑</span>
+                        <span class="nav-text">Remove Station</span>
+                    </button>
+
+                    <button class="nav-item" data-view="add-station">
+                        <span class="nav-icon">＋</span>
+                        <span class="nav-text">Add Station</span>
+                    </button>
+
+                    <button class="nav-item" data-view="block-carrier">
+                        <span class="nav-icon">⦸</span>
+                        <span class="nav-text">Block / Unblock Carrier</span>
+                    </button>
+
+                    <button class="nav-item" data-view="report">
+                        <span class="nav-icon">🧾</span>
+                        <span class="nav-text">View Report</span>
+                    </button>
+
+                    <button class="nav-item" data-view="facility-edit">
+                        <span class="nav-icon">⚙</span>
+                        <span class="nav-text">Edit Facility Info</span>
+                    </button>
+
+                    <button class="nav-item" data-view="stats">
+                        <span class="nav-icon">📊</span>
+                        <span class="nav-text">View Facility Statistics</span>
+                    </button>
+
+                    <button class="nav-item" data-view="issue-form">
+                        <span class="nav-icon">👁</span>
+                        <span class="nav-text">View Issue Form</span>
+                    </button>
+
+                    <button class="nav-item" data-view="solve-issue">
+                        <span class="nav-icon">✓</span>
+                        <span class="nav-text">Solved Issues</span>
+                    </button>
+                    <button class="nav-item" data-view="manage-users">
+                        <span class="nav-icon">👥</span>
+                        <span class="nav-text">Manage Users</span>
+                    </button>
+                    <button class="nav-item" data-view="pending-applications">
+                        <span class="nav-icon">🕒</span>
+                        <span class="nav-text">Pending Applications</span>
+                    </button>
+                    <button id="logoutBtn" class="nav-item nav-item-logout" type="button">
+                        <span class="nav-icon">⏻</span>
+                        <span class="nav-text">Logout</span>
+                    </button>
+                </nav>
+
+            </div>
+        </aside>
+
+        <!-- Content -->
+        <main class="content" id="content">
+            <header class="content-header">
+                <h1 id="pageTitle">Admin</h1>
+            </header>
+
+            <section class="content-body" id="viewRoot"></section>
+        </main>
+    </div>
+
+    <script type="module" src="./src/pages/dashboard.js"></script>
+</body>
+
+</html>

@@ -54,7 +54,7 @@ form.addEventListener("submit", async (e) => {
 
     // admin sayfasına yönlendir
     localStorage.setItem("admin_session", "true");
-    window.location.href = "./admin/index.html";
+    window.location.href = "./dashboard.html";
   } catch (err) {
     errorBox.textContent = err?.message || "Login failed.";
     errorBox.hidden = false;
