@@ -100,6 +100,24 @@ function setActive(viewKey) {
       })
       .catch(err => console.error('issueForm load error', err));
   }
+
+  if (viewKey === 'manage-users') {
+    import('./manageUsers.js')
+      .then(mod => {
+        const root = document.getElementById('manageUsersRoot');
+        if (root && mod.initManageUsers) mod.initManageUsers(root);
+      })
+      .catch(err => console.error('manageUsers load error', err));
+  }
+
+  if (viewKey === 'pending-applications') {
+    import('./pendingApplications.js')
+      .then(mod => {
+        const root = document.getElementById('pendingApplicationsRoot');
+        if (root && mod.initPendingApplications) mod.initPendingApplications(root);
+      })
+      .catch(err => console.error('pendingApplications load error', err));
+  }
 }
 
 nav.addEventListener("click", (e) => {
