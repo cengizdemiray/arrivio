@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Arrivio - Operator</title>
+
+    <link rel="stylesheet" href="./assets/css/base.css" />
+    <link rel="stylesheet" href="./assets/css/components.css" />
+    <link rel="stylesheet" href="./assets/css/pages/operator.css" />
+</head>
+
+<body>
+    <div class="admin-shell">
+        <!-- Sidebar -->
+        <aside class="sidebar" aria-label="Operator navigation">
+            <div class="sidebar-top">
+                <div class="brand">
+                    <span class="brand-title">Operator</span>
+
+                </div>
+            </div>
+
+            <div class="sidebar-section">
+                <div class="sidebar-heading">
+                    
+                </div>
+
+                <nav class="nav" id="operatorNav">
+
+                    <button class="nav-item" data-view="issue-create">
+                        
+                        <span class="nav-text">Create Issue Form</span>
+                    </button>
+
+                    <button class="nav-item" data-view="facility-status">
+                        
+                        <span class="nav-text">Edit Facility Status</span>
+                    </button>
+
+                    <button class="nav-item" data-view="queue-manager">
+                       
+                        <span class="nav-text">Queue Manager</span>
+                    </button>
+                    <button class="nav-item" data-view="profile">
+                        <span class="nav-text">Profile</span>
+                    </button>
+                    <button id="logoutBtn" class="nav-item nav-item-logout" type="button">
+                       
+                        <span class="nav-text">Logout</span>
+                    </button>
+                </nav>
+
+            </div>
+        </aside>
+
+        <!-- Content -->
+        <main class="content" id="content">
+            <header class="content-header">
+                <h1 id="pageTitle">Operator</h1>
+            </header>
+
+            <section class="content-body" id="viewRoot"></section>
+        </main>
+    </div>
+
+    <script type="module" src="./src/pages/operator.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Operator Register</title>
+
+  <link rel="stylesheet" href="./assets/css/base.css" />
+  <link rel="stylesheet" href="./assets/css/components.css" />
+  <link rel="stylesheet" href="./assets/css/pages/login.css" />
+</head>
+<body>
+  <main class="auth">
+    <section class="card" aria-label="Operator Register">
+      <div class="logo">
+        <div class="logo-badge" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+            <path d="M12 2a6 6 0 0 0-6 6v2H5a3 3 0 0 0-3 3v6a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3v-6a3 3 0 0 0-3-3h-1V8a6 6 0 0 0-6-6Zm0 2a4 4 0 0 1 4 4v2H8V8a4 4 0 0 1 4-4Z" fill="currentColor"/>
+          </svg>
+        </div>
+      </div>
+
+      <h1 class="title">Operator Registration</h1>
+      <p class="subtitle">Create your operator request. You can log in after admin approval.</p>
+
+      <div id="registerError" class="alert alert-error" role="alert" hidden>
+        Could not submit. Please check your details.
+      </div>
+      <div id="registerSuccess" class="alert" role="status" hidden style="background:#ecfdf3;border:1px solid #bbf7d0;color:#166534;">
+        Request received. You can sign in after admin approval.
+      </div>
+
+      <form id="registerForm" class="form" novalidate>
+        <div class="field">
+          <label for="name">Name</label>
+          <input id="name" name="name" type="text" placeholder="First name" required />
+        </div>
+        <div class="field">
+          <label for="surname">Surname</label>
+          <input id="surname" name="surname" type="text" placeholder="Last name" required />
+        </div>
+        <div class="field">
+          <label for="email">Email</label>
+          <input id="email" name="email" type="email" placeholder="operator@example.com" autocomplete="username" required />
+        </div>
+        <div class="field">
+          <label for="password">Password</label>
+          <div class="input-wrap">
+            <input id="password" name="password" type="password" placeholder="********" autocomplete="new-password" required />
+            <button class="icon-btn" type="button" id="togglePwd" aria-label="Show password">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M12 5c5.5 0 9.7 4.4 10.9 6.1.1.2.1.5 0 .7C21.7 13.6 17.5 18 12 18S2.3 13.6 1.1 11.8a.7.7 0 0 1 0-.7C2.3 9.4 6.5 5 12 5Zm0 11c3.9 0 7.2-3 8.6-4.6C19.2 9.8 15.9 7 12 7S4.8 9.8 3.4 11.4C4.8 13 8.1 16 12 16Zm0-8a3 3 0 1 1 0 6 3 3 0 0 1 0-6Z" fill="currentColor"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div class="field">
+          <label for="role">Role</label>
+          <select id="role" name="role">
+            <option value="operator" selected>Operator</option>
+          </select>
+        </div>
+
+        <button class="btn btn-primary" type="submit">Send Request</button>
+
+        <div class="footnote">
+          Requests go to admin approval. Login is disabled until approved.
+        </div>
+        <div class="footnote">
+          Already have an account? <a class="link" href="./login.html">Go to login</a>
+        </div>
+      </form>
+    </section>
+  </main>
+
+  <script type="module" src="./src/pages/operatorRegister.js"></script>
+</body>
+</html>

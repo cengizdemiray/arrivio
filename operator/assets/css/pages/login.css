@@ -1,0 +1,45 @@
+/* pages/login.css */
+.auth{
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 56px 16px;
+  position: relative;
+  overflow: hidden;
+}
+
+.auth::before,
+.auth::after{
+  content: "";
+  position: absolute;
+  width: 360px;
+  height: 360px;
+  border-radius: 40%;
+  background: radial-gradient(circle, rgba(245, 158, 11, 0.18), transparent 70%);
+  top: -120px;
+  left: -80px;
+  filter: blur(0.5px);
+  z-index: 0;
+}
+
+.auth::after{
+  width: 420px;
+  height: 420px;
+  border-radius: 30%;
+  background: radial-gradient(circle, rgba(14, 165, 164, 0.2), transparent 70%);
+  top: auto;
+  bottom: -160px;
+  left: auto;
+  right: -120px;
+  animation: glowPulse 2.8s ease-in-out infinite alternate;
+}
+
+.auth .card{
+  z-index: 1;
+}
+
+@media (max-width: 540px){
+  .auth{
+    padding: 32px 12px;
+  }
+}
