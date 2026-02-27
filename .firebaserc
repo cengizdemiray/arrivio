@@ -1,0 +1,8 @@
+{
+  "projects": {
+    "prod": "arrivio-271aa",
+    "default": "arrivio-271aa"
+  },
+  "targets": {},
+  "etags": {}
+}
