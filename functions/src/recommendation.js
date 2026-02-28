@@ -15,7 +15,7 @@ const {
     mm1Wq,
 } = require("./utils");
 
-exports.getStationsMM1ForSlotStart = onReuest(
+exports.getStationsMM1ForSlotStart = onRequest(
     { region: REGION, cors: true },
     async (req, res) => {
         try {
