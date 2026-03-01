@@ -1,7 +1,7 @@
 const { onRequest } = require('firebase-functions/v2/https');
 const admin = require('firebase-admin');
 if (!admin.apps.length) {
-  admin.initializeApp();
+    admin.initializeApp();
 }
 
 const db = admin.firestore();
@@ -41,14 +41,16 @@ exports.getStationsMM1ForSlotStart = onRequest(
                     const s = doc.data();
                     const stationId = doc.id;
 
-                    const averageServiceTime = Number(s.averageServiceTimeMin ?? 0);
+                    const averageServiceTime = Number(s.avgServiceTimeMin ?? 0);
                     const mu = muPerMinFromAvgServiceTime(averageServiceTime);
 
                     const historyData = await db.collection("QueueEntry")
                         .where("stationId", "==", stationId)
                         .where("slotKey", "==", slotKey)
                         .where("createdAt", ">=", historyStart)
-                        .count().get();
+                        .where("queueStatus", "in", ["Queued", "InProgress", "Completed"])
+                        .count()
+                        .get();
 
                     const pastArrivals = historyData.data().count || 0;
                     const lambda = pastArrivals / (HISTORY_DAYS * SLOT_INTERVAL_MIN);
@@ -79,3 +81,4 @@ exports.getStationsMM1ForSlotStart = onRequest(
         }
     }
 );
+
