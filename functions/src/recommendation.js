@@ -12,9 +12,7 @@ const {
     SLOT_INTERVAL_MIN,
     HISTORY_DAYS,
     parseISO,
-    isValidSlotStart,
     slotKeyFromStart,
-    slotIdFromStart,
     muPerMinFromAvgServiceTime,
     mm1Wq,
 } = require("./utils");
@@ -48,6 +46,7 @@ exports.getStationsMM1ForSlotStart = onRequest(
 
                     const historyData = await db.collection("QueueEntry")
                         .where("stationId", "==", stationId)
+                        .where("slotKey", "==", slotKey)
                         .where("createdAt", ">=", historyStart)
                         .count().get();
 
