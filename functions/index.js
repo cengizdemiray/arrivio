@@ -3,6 +3,8 @@ const { onRequest } = require("firebase-functions/v2/https");
 
 setGlobalOptions({ maxInstances: 10 });
 
-exports.hello = onRequest((req, res) => {
-  res.send("ok");
-});
+module.exports = {
+    ...require("./src/queue"),
+    ...require("./src/recommendation"),
+    ...require("./src/stationStats"),
+};

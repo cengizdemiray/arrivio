@@ -1,5 +1,9 @@
 const { onRequest } = require('firebase-functions/v2/https');
 const admin = require('firebase-admin');
+if (!admin.apps.length) {
+  admin.initializeApp();
+}
+
 const db = admin.firestore();
 
 const REGION = "us-central1";
