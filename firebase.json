@@ -19,5 +19,8 @@
     "firestore": { "port": 8080 },
     "ui": { "enabled": true, "port": 4000 },
     "singleProjectMode": true
+  },
+  "firestore": {
+    "indexes": "firestore.indexes.json"
   }
 }

@@ -4,7 +4,23 @@ if (!admin.apps.length) {
     admin.initializeApp();
 }
 const db = admin.firestore();
-const REGION = "us-central1";
+const REGION = "europe-west3";
+
+function normStatus(value) {
+    return String(value || "").trim();
+}
+
+function toMillis(value) {
+    if (!value) return null;
+    if (typeof value === "number") return value;
+    if (value instanceof Date) return value.getTime();
+    if (typeof value.toMillis === "function") return value.toMillis();
+    if (typeof value.toDate === "function") return value.toDate().getTime();
+    if (typeof value.seconds === "number") {
+        return value.seconds * 1000 + Math.floor((value.nanoseconds || 0) / 1e6);
+    }
+    return null;
+}
 
 const {
     parseISO,
@@ -29,6 +45,7 @@ exports.enterQueue = onRequest(
                 stationId,
                 slotKey,
                 queueStatus: "Queued",
+                queuedAt: admin.firestore.FieldValue.serverTimestamp(),
                 createdAt: admin.firestore.FieldValue.serverTimestamp(),
             });
             return res.status(200).json({ message: "Entered queue" });
@@ -63,13 +80,13 @@ exports.startService = onRequest(
                 if (!stationId) throw new Error("STATION_ID_MISSING");
 
                 // 1) Sadece Queued başlatılabilir
-                if (entry.queueStatus !== "Queued") throw new Error("NOT_QUEUED");
+                if (normStatus(entry.queueStatus) !== "Queued") throw new Error("NOT_QUEUED");
 
                 // 2) Aynı station’da InProgress var mı? (MM1 için kilit kural)
                 const inProgQ = db
                     .collection("QueueEntry")
                     .where("stationId", "==", stationId)
-                    .where("queueStatus", "==", "InProgress")
+                    .where("queueStatus", "in", ["InProgress", " InProgress"])
                     .limit(1);
 
                 const inProgSnap = await tx.get(inProgQ);
@@ -123,7 +140,7 @@ exports.completeService = onRequest(
                 const entry = snap.data();
 
                 // Sadece InProgress tamamlanabilir
-                if (entry.queueStatus !== "InProgress") throw new Error("NOT_IN_PROGRESS");
+                if (normStatus(entry.queueStatus) !== "InProgress") throw new Error("NOT_IN_PROGRESS");
 
                 // startedAt yoksa tamamlamaya izin verme
                 if (!entry.startedAt) throw new Error("MISSING_STARTED_AT");
@@ -164,7 +181,7 @@ exports.cancelQueueEntry = onRequest(
     { region: REGION, cors: true },
     async (req, res) => {
         try {
-            const { queueEntryId, operatorId, reason } = req.body() || {};
+            const { queueEntryId, operatorId, reason } = req.body || {};
             if (!queueEntryId) {
                 return res.status(400).json({ error: "queueEntryId is required" });
             }
@@ -174,7 +191,7 @@ exports.cancelQueueEntry = onRequest(
                 const snap = await tx.get(entryRef);
                 if (!snap.exists) throw new Error("ENTRY_NOT_FOUND");
                 const entry = snap.data();
-                if (entry.queuStatus !== "Queued") throw new Error("ONLY_QUEUED_CAN_BE_CANCELLED");
+                if (normStatus(entry.queueStatus) !== "Queued") throw new Error("ONLY_QUEUED_CAN_BE_CANCELLED");
 
                 tx.update(entryRef, {
                     queueStatus: "Cancelled",
@@ -212,7 +229,7 @@ exports.getActiveStations = onRequest(
                 const s = d.data() || {};
                 return {
                     id: d.id,
-                    name: s.name || s.stationName || s.code || "Station",
+                    name: s.name || s.stationName || s.Name || s.code || "Station",
                     code: s.code || "",
                     status: s.status || "active",
                     // sende alan adı avgServiceTimeMin ise:
@@ -242,8 +259,8 @@ exports.getStationQueue = onRequest(
             const snap = await db
                 .collection("QueueEntry")
                 .where("stationId", "==", stationId)
-                .where("queueStatus", "in", ["Queued", "InProgress"]) // Cancelled/Completed gelmesin
-                .orderBy("createdAt", "asc")
+                .where("queueStatus", "in", ["Queued", " InProgress", "InProgress", " Queued"]) // Cancelled/Completed gelmesin
+                .orderBy("queuedAt", "asc")
                 .limit(LIM)
                 .get();
 
@@ -254,10 +271,11 @@ exports.getStationQueue = onRequest(
                     stationId: q.stationId || stationId,
                     carrierId: q.carrierId || null,
                     slotKey: q.slotKey || null,
-                    queueStatus: q.queueStatus || "Queued",
-                    createdAt: q.createdAt || null,
-                    startedAt: q.startedAt || null,
-                    completedAt: q.completedAt || null,
+                    queueStatus: normStatus(q.queueStatus) || "Queued",
+                    queuedAt: toMillis(q.queuedAt),
+                    startedAt: toMillis(q.startedAt),
+                    completedAt: toMillis(q.completedAt),
+                    createdAt: toMillis(q.createdAt),
                     // UI’da lazımsa ekstra alanlar:
                     truckPlate: q.truckPlate || q.truck || "",
                     commodity: q.commodity || "",
@@ -276,4 +294,3 @@ exports.getStationQueue = onRequest(
         }
     }
 );
-

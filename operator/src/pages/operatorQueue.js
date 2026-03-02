@@ -1,283 +1,369 @@
-// js/pages/operatorQueueManager.js
-export async function renderQueueManagerView(root, deps) {
-  const {
-    loadQueueStations,
-    loadStationQueue,
-    arriveQueueBooking,
-    completeQueueBooking,
-    formatNow,
-    getCachedStations = () => [],
-    setCachedStations = () => {},
-    getFocusedStation = () => null,
-    onStationFocusChange = () => {}
-  } = deps || {};
 
-  // Top-level state per render keeps the view independent from other modules
-  root.innerHTML = `<div class="card" style="padding:20px;">Loading queues...</div>`;
-  const stations = await loadQueueStations?.() || [];
-  let cachedStations = stations;
-  const initialFocus = getFocusedStation?.();
-  const focusedId = initialFocus?.id || initialFocus?.code || null;
-  const hasFocused = focusedId && cachedStations.some(st => (st.id || st.code) === focusedId);
-  let selectedStation = hasFocused ? focusedId : (cachedStations[0] ? cachedStations[0].id : null);
 
-  root.innerHTML = `
-    <div class="operator-hero">
-      <div class="hero-row">
+export function renderQueueManagerView(viewRoot, options = {}) {
+  const endpoints = {
+    getActiveStations: "https://getactivestations-7xyjjmcxha-ey.a.run.app",
+    getStationQueue: "https://getstationqueue-7xyjjmcxha-ey.a.run.app",
+    startService: "https://startservice-7xyjjmcxha-ey.a.run.app",
+    completeService: "https://completeservice-7xyjjmcxha-ey.a.run.app",
+    cancelQueueEntry: "https://cancelqueueentry-7xyjjmcxha-ey.a.run.app",
+    //updateStationAverageServiceTime: "https://updatestationaverageservicetime-7xyjjmcxha-ey.a.run.app",
+  };
+  const refreshMs = Number(options.refreshMs) || 30000;
+  viewRoot.innerHTML = `
+    <div class="oq-wrap">
+      <div class="oq-hero">
         <div>
-          <div class="hero-title">Queue Manager</div>
-          <p class="hero-sub">View per-station queues, add carriers, mark no-show or complete.</p>
+          <h2>Queue Manager</h2>
+          <p>Start / Complete / No-show — HTTP Functions ile bağlı.</p>
+        </div>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <button id="oqRefresh" class="btn ghost" type="button">Refresh</button>
         </div>
       </div>
-    </div>
 
-    <div class="queue-layout">
-      <aside class="queue-stations">
-        <div class="search-row"><input id="stationFilter" placeholder="Station, code" /></div>
-        <ul id="stationList" class="station-list"></ul>
-      </aside>
-      <div class="queue-detail" id="queueDetail"></div>
+      <div class="oq-layout">
+        <aside class="oq-card oq-side">
+          <div class="oq-search">
+            <input id="oqFilter" placeholder="Search station name / code" />
+          </div>
+          <ul id="oqStations" class="oq-list"></ul>
+        </aside>
+
+        <main class="oq-card">
+          <div id="oqDetail">Select a station…</div>
+        </main>
+      </div>
     </div>
   `;
 
-  const stationList = root.querySelector('#stationList');
-  const stationFilter = root.querySelector('#stationFilter');
-  const detail = root.querySelector('#queueDetail');
+  // viewRoot içinde selector aramak için
+  const $ = (sel) => viewRoot.querySelector(sel);
+  // ortak POST helper
+  const post = async (functionName, body) => {
+    const url = endpoints[functionName];
+    if (!url) throw new Error(`Endpoint not found: ${functionName}`);
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body || {}),
+    });
 
-  function formatTimestamp(value) {
-    if (!value) return '';
-    if (typeof value === 'string' || typeof value === 'number') return value;
-    if (typeof value.toDate === 'function') {
-      return formatTime(value.toDate());
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data?.error || `Request failed with status ${res.status}`);
+    return data;
+  };
+  // sağ altta kısa süreli bildirimler için
+  const toast = (title, msg) => {
+    const el = document.createElement("div");
+    el.className = "oq-toast";
+    el.innerHTML = `<strong>${escapeHtml(title)}</strong><span>${escapeHtml(
+      msg || ""
+    )}</span>`;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 2400);
+  };
+
+  const asDate = (v) => {
+    if (!v) return null;
+    if (v instanceof Date) return v;
+    if (typeof v === "string" || typeof v === "number") {
+      const d = new Date(v);
+      return Number.isNaN(d.getTime()) ? null : d;
     }
-    if (typeof value.seconds === 'number') {
-      const ms = value.seconds * 1000 + Math.floor((value.nanoseconds || 0) / 1e6);
-      return formatTime(new Date(ms));
+    if (typeof v.toDate === "function") return v.toDate();
+    if (typeof v.seconds === "number") {
+      const ms = v.seconds * 1000 + Math.floor((v.nanoseconds || 0) / 1e6);
+      const d = new Date(ms);
+      return Number.isNaN(d.getTime()) ? null : d;
     }
-    return '';
+    return null;
   }
 
-  function formatTime(date) {
-    if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
-    const hh = String(date.getHours()).padStart(2, '0');
-    const mm = String(date.getMinutes()).padStart(2, '0');
+  const hhmm = (v) => {
+    const d = asDate(v);
+    if (!d) return "--:--";
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mm = String(d.getMinutes()).padStart(2, "0");
     return `${hh}:${mm}`;
   }
 
-  function formatAvgService(value) {
-    if (Number.isFinite(value)) return `${value.toFixed(1)} min`;
-    if (typeof value === 'string' && value.trim()) return value;
-    return '--';
+  const escapeHtml = (str) =>
+    String(str ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+
+  let stations = [];
+  let selectedStationId = null;
+  let busy = false; // bir işlem sırasında tekrar tıklamayı önlemek
+  let timer = null;
+  let lastRefresh = null;
+
+  //station listesini çeken fonksiyon
+  async function fetchStations() {
+    const data = await post("getActiveStations", {});
+    const array = Array.isArray(data) ? data : data.stations || [];
+    stations = array.map((s) => ({
+      id: s.id || s.code || "",
+      code: s.code || "",
+      queueKey: s.id || s.code || "",
+      name: s.name || s.stationName || s.Name || s.code || "Station",
+      status: s.status || "active",
+      avgServiceTimeMin: Number(s.avgServiceTimeMin ?? s.averageServiceTimeMin ?? NaN),
+    }));
+    //ilk açılışta otomatik olarak ilk station seçili gelsin
+    if (!selectedStationId && stations[0]) selectedStationId = stations[0].id;
   }
 
-  // Keep source of truth in module-local var and inform parent cache
-  function persistStations(nextStations) {
-    cachedStations = nextStations;
-    setCachedStations(nextStations);
+  async function fetchQueue(stationId) {
+    const data = await post("getStationQueue", { stationId });
+    const array = Array.isArray(data) ? data : data.queue || [];
+    const queue = (data.queue || []).map((q) => ({
+      id: q.id,
+      carrierId: q.carrierId,
+      slotKey: q.slotKey || "",
+      queueStatus: q.queueStatus,
+      createdAt: q.createdAt,
+      startedAt: q.startedAt,
+      completedAt: q.completedAt,
+    }));
+
+    const idx = stations.findIndex((s) => s.id === stationId);
+    if (idx != -1) {
+      stations[idx] = {
+        ...stations[idx],
+        queue,
+        inServiceCount: queue.filter((q) => q.queueStatus === "InProgress").length,
+      };
+    }
   }
 
-  function renderStations() {
-    // Left column list with simple text filter on name/code
-    const term = stationFilter.value.trim().toLowerCase();
-    stationList.innerHTML = '';
-    cachedStations
-      .filter(st => !term || st.name.toLowerCase().includes(term) || st.code.toLowerCase().includes(term))
-      .forEach(st => {
-        const li = document.createElement('li');
+  async function startService(queueEntryId) {
+    await post("startService", { queueEntryId });
+    toast("Service started", `Queue Entry ID: ${queueEntryId}`);
+  }
+
+  async function completeService(queueEntryId) {
+    await post("completeService", { queueEntryId });
+  }
+
+  async function cancelQueueEntry(queueEntryId) {
+    await post("cancelQueueEntry", { queueEntryId, reason: "No-show" });
+  }
+
+  // UI Renderer Fonksiyonları
+  function renderStationList() {
+    const term = ($("#oqFilter").value || "").trim().toLowerCase();
+    const ul = $("#oqStations");
+    ul.innerHTML = "";
+    stations
+      .filter(
+        (s) =>
+          !term ||
+          s.name.toLowerCase().includes(term)
+      )
+      .forEach((s) => {
+        const queuedCount = Array.isArray(s.queue)
+          ? s.queue.filter((q) => q.queueStatus === "Queued").length
+          : 0;
+        const inServiceCount = Number(s.inServiceCount || 0);
+        const li = document.createElement("li");
+
         li.innerHTML = `
-          <div class="station-card ${selectedStation === st.id ? 'active' : ''}" data-id="${st.id}">
-            <div class="title">${st.name}</div>
-            <div class="meta">
-              <span>${st.code}</span>
-              <span class="badge ${st.status === 'Operational' ? 'badge-green' : 'badge-amber'}">${st.status}</span>
+          <div class="oq-st ${s.id === selectedStationId ? "active" : ""}" data-id="${s.id}">
+            <div class="top">
+              <div class="name">${escapeHtml(s.name)}</div>
+              <span class="badge ${String(s.status).toLowerCase() === "active" ? "ok" : "amb"
+          }">${escapeHtml(String(s.status))}</span>
             </div>
             <div class="meta">
-              <span>Queue: ${st.queue.length}</span>
+              <span>${escapeHtml(s.code)}</span>
+              <span>Queued: <strong>${queuedCount}</strong></span>
+              <span>In service: <strong>${inServiceCount}</strong></span>
             </div>
           </div>
         `;
-        li.addEventListener('click', () => {
-          selectedStation = st.id || st.code;
-          onStationFocusChange?.({
-            id: st.id || st.code,
-            code: st.code || st.id || '',
-            name: st.name || st.code || 'Station'
-          });
-          renderStations();
-          renderDetail();
-          hydrateStationQueue(st.id || st.code).then(() => {
-            renderStations();
-            renderDetail();
-          });
+
+        // Station'a tıklanınca sağ panel yenilensin
+        li.addEventListener("click", async () => {
+          selectedStationId = s.id;
+
+          // Solda aktif highlight için tekrar render
+          renderStationList();
+
+          // Seçilen station queue'sunu çekip detay paneli güncelle
+          await refreshSelected();
         });
-        stationList.appendChild(li);
+
+        ul.appendChild(li);
       });
-  }
-
-  async function hydrateStationQueue(stationId) {
-    if (!loadStationQueue || !stationId) return;
-    const payload = await loadStationQueue(stationId);
-    if (!payload) return;
-    const queue = Array.isArray(payload) ? payload : (payload.queue || []);
-    const history = Array.isArray(payload?.history) ? payload.history : null;
-    const next = cachedStations.map(s => {
-      if (s.id !== stationId) return s;
-      return {
-        ...s,
-        queue: Array.isArray(queue) ? queue : [],
-        history: history ? history : (s.history || []),
-        inServiceCount: Number.isFinite(payload.inServiceCount) ? payload.inServiceCount : (s.inServiceCount || 0)
-      };
-    });
-    persistStations(next);
-  }
-
-  function persistStation(station) {
-    station.lastCall = formatNow();
-    const next = cachedStations.map(s => s.id === station.id ? station : s);
-    persistStations(next);
   }
 
   function renderDetail() {
-    if (!selectedStation) {
-      detail.innerHTML = `<p>Select a station.</p>`;
+    const host = $("#oqDetail");
+    const st = stations.find((s) => s.id === selectedStationId);
+    if (!st) {
+      host.innerHTML = "Select a station...";
       return;
     }
-    // Find selected station each time to re-render latest queue state
-    const st = cachedStations.find(s => s.id === selectedStation);
-    if (!st) return;
-
-    const avgWait = `${Math.max(3, st.queue.length * 4)} min`;
-    const inServiceCount = Number.isFinite(st.inServiceCount)
-      ? st.inServiceCount
-      : (st.queue || []).filter(item => String(item.status || '').toLowerCase() === 'in service').length;
-    const allQueueItems = Array.isArray(st.queue) ? st.queue : [];
-
-    detail.innerHTML = `
-      <div class="queue-head">
-        <h3>${st.name}</h3>
-        <span class="status-pill ${st.status === 'Operational' ? 'operational' : 'paused'}">${st.status}</span>
-      </div>
-      <div class="queue-metrics">
-        <div class="metric"><div class="label">Queue size</div><div class="value">${st.queue.length}</div></div>
-        <div class="metric"><div class="label">Avg wait</div><div class="value">${avgWait}</div></div>
-        <div class="metric"><div class="label">Avg service time</div><div class="value">${formatAvgService(st.avgServiceTimeMin)}</div></div>
-        <div class="metric"><div class="label">In service now</div><div class="value">${inServiceCount}</div></div>
-      </div>
-      <div class="add-carrier">
-        <input id="carrierName" placeholder="Carrier name" />
-        <input id="carrierTruck" placeholder="Truck plate" />
-        <input id="carrierTrailer" placeholder="Trailer ID" />
-        <input id="carrierCommodity" placeholder="Commodity" />
-        <input id="carrierEta" placeholder="ETA (min)" />
-      </div>
-      <div class="add-actions">
-        <button id="addCarrierBtn" class="btn btn-primary">Add to queue</button>
-        <span class="meta">Use for manual entries or walk-ins.</span>
+    const q = Array.isArray(st.queue) ? st.queue : [];
+    const inProg = q.find((e) => e.queueStatus === "InProgress") || null;
+    const queued = q.filter((e) => e.queueStatus === "Queued") || [];
+    const avgService = Number.isFinite(st.avgServiceTimeMin)
+      ? `${st.avgServiceTimeMin.toFixed(1)} min`
+      : "--";
+    host.innerHTML = `
+      <div class="oq-head">
+        <h3>${escapeHtml(st.name)}</h3>
+        <span class="badge ${String(st.status).toLowerCase() === "active" ? "ok" : "amb"
+      }">${escapeHtml(String(st.status))}</span>
       </div>
 
-      <table class="queue-table">
-        <thead><tr><th>#</th><th>Carrier</th><th>Truck</th><th>Commodity</th><th>ETA</th><th>Status</th><th>Actions</th></tr></thead>
+      <div class="oq-metrics">
+        <div class="metric"><div class="label">Queued</div><div class="value">${queued.length}</div></div>
+        <div class="metric"><div class="label">In progress</div><div class="value">${inProg ? 1 : 0}</div></div>
+        <div class="metric"><div class="label">Avg service</div><div class="value">${avgService}</div></div>
+      </div>
+
+      <div class="oq-inprog">
+        <div>
+          <div class="small">IN PROGRESS</div>
+          <div class="who">${inProg ? escapeHtml(inProg.carrierId || inProg.id) : "—"}</div>
+          <div class="small" style="margin-top:6px;">
+            Started: ${inProg ? hhmm(inProg.startedAt) : "--:--"} · Slot: ${inProg ? escapeHtml(inProg.slotKey) : ""}
+          </div>
+        </div>
+        <button class="btn primary" id="btnTopComplete" ${inProg ? "" : "disabled"
+      }>Complete</button>
+      </div>
+
+      <table class="table">
+        <thead>
+          <tr>
+            <th>#</th><th>Carrier</th><th>Slot</th><th>Created</th><th>Status</th><th>Actions</th>
+          </tr>
+        </thead>
         <tbody>
-          ${allQueueItems.map((q, idx) => `
-            <tr data-id="${q.id}">
-              <td>${idx + 1}</td>
-              <td>${q.carrier}</td>
-              <td>${q.truck}</td>
-              <td>${q.commodity || ''}</td>
-              <td>${formatTimestamp(q.eta)}</td>
-              <td>${q.status || ''}</td>
-              <td>
-                <div class="queue-actions">
-                  <button class="action-btn danger" data-action="no-show" data-id="${q.id}">No-show</button>
-                  <button class="action-btn primary" data-action="complete" data-id="${q.id}">Complete</button>
-                </div>
-              </td>
-            </tr>
-          `).join('')}
+          ${q
+        .map((item, i) => {
+          // FIFO yok: queued olan herhangi biri start edilebilir
+          // MM1 var: inProg varken start edilmesin (backend zaten reddedebilir)
+          const canStart = item.queueStatus === "Queued" && !inProg;
+
+          // No-show sadece Queued için
+          const canNoShow = item.queueStatus === "Queued";
+
+          // Complete sadece InProgress için
+          const canComplete = item.queueStatus === "InProgress";
+
+          return `
+                <tr>
+                  <td>${i + 1}</td>
+                  <td>${escapeHtml(item.carrierId || item.id)}</td>
+                  <td>${escapeHtml(item.slotKey || "")}</td>
+                  <td>${hhmm(item.createdAt)}</td>
+                  <td>${escapeHtml(item.queueStatus)}</td>
+                  <td>
+                    <div class="actions">
+                      <button class="btn primary" data-action="start" data-id="${item.id}" ${canStart ? "" : "disabled"
+            }>Start</button>
+                      <button class="btn danger" data-action="no-show" data-id="${item.id}" ${canNoShow ? "" : "disabled"
+            }>No-show</button>
+                      <button class="btn primary" data-action="complete" data-id="${item.id}" ${canComplete ? "" : "disabled"
+            }>Complete</button>
+                    </div>
+                  </td>
+                </tr>
+              `;
+        })
+        .join("")}
         </tbody>
       </table>
 
-      <div style="margin-top:12px;">
-        <div class="pill">Last call: ${formatTimestamp(st.lastCall) || '--'}</div>
-      </div>
-
-      <div style="margin-top:12px;">
-        <h4>Recent actions</h4>
-        <div id="queueHistory" class="history-list">
-          ${(st.history || []).slice(0, 5).map(h => `
-            <div class="history-item">
-              <strong>${h.carrier}</strong>
-              <div class="meta">${formatTimestamp(h.at) || ''} - ${h.action}</div>
-              <div>${h.truck || ''}</div>
-            </div>
-          `).join('')}
-        </div>
+      <div class="oq-foot">
+        <div>Last refresh: ${lastRefresh ? hhmm(lastRefresh) : "--:--"}</div>
+        <div>${busy ? "Working…" : ""}</div>
       </div>
     `;
-
-    const addBtn = detail.querySelector('#addCarrierBtn');
-    addBtn.addEventListener('click', () => {
-      // Manual enqueue of a carrier into the selected station queue
-      const carrier = detail.querySelector('#carrierName').value.trim();
-      const truck = detail.querySelector('#carrierTruck').value.trim();
-      const trailer = detail.querySelector('#carrierTrailer').value.trim();
-      const commodity = detail.querySelector('#carrierCommodity').value.trim();
-      const eta = detail.querySelector('#carrierEta').value.trim() || '~8 min';
-      if (!carrier || !truck) return;
-      st.queue.push({ id: `Q-${Date.now()}`, carrier, truck, trailer, commodity, eta, status: 'waiting' });
-      persistStation(st);
-      renderStations();
-      renderDetail();
+    // Detay panelindeki butonlara tıklanınca ilgili action'ı çağır
+    $("#btnTopComplete")?.addEventListener("click", async () => {
+      if (!inProg) return;
+      await handleAction("complete", inProg.id);
     });
 
-    detail.querySelectorAll('[data-action]').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        // Action buttons remove from queue and log into history
-        const action = btn.dataset.action;
-        const id = btn.dataset.id;
-        const idx = st.queue.findIndex(q => q.id === id);
-        if (idx === -1) return;
-        const entry = st.queue[idx];
-        if (action === 'complete' && completeQueueBooking) {
-          btn.disabled = true;
-          try {
-            await completeQueueBooking(entry);
-          } catch (err) {
-            console.error('Failed to complete booking', err);
-            alert(err?.message || 'Could not complete booking.');
-            btn.disabled = false;
-            return;
-          }
-        }
-        st.queue.splice(idx, 1);
-        st.history = st.history || [];
-        st.history.unshift({ carrier: entry.carrier, action, at: formatNow(), truck: entry.truck });
-        persistStation(st);
-        renderStations();
-        renderDetail();
+    // Tablo satır butonları
+    host.querySelectorAll("[data-action]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        await handleAction(btn.dataset.action, btn.dataset.id);
       });
     });
   }
+  //Aksiyonları yöneten fonksiyon
+  async function handleAction(action, id) {
+    if (!id || busy) return;
 
-  stationFilter.addEventListener('input', renderStations);
-
-  renderStations();
-  renderDetail();
-  if (selectedStation) {
-    const selected = cachedStations.find(st => st.id === selectedStation || st.code === selectedStation);
-    if (selected) {
-      onStationFocusChange?.({
-        id: selected.id || selected.code,
-        code: selected.code || selected.id || '',
-        name: selected.name || selected.code || 'Station'
-      });
+    busy = true;
+    renderDetail();
+    try {
+      if (action === "start") {
+        await startService(id);
+        toast("Started", "Service started successfully");
+      } else if (action === "complete") {
+        await completeService(id);
+        toast("Completed", "Service completed successfully");
+      } else if (action === "no-show") {
+        await cancelQueueEntry(id);
+        toast("No-show", "Queue entry marked as no-show");
+      }
+      await refreshSelected();
+    } catch (err) {
+      console.error(err);
+      toast("Error", err.message || "Action failed");
+    } finally {
+      busy = false;
+      renderDetail();
     }
   }
-  if (selectedStation) {
-    hydrateStationQueue(selectedStation).then(() => {
-      renderStations();
-      renderDetail();
-    });
+  async function refreshSelected() {
+    if (!selectedStationId) return;
+    const st = stations.find((s) => s.id === selectedStationId);
+    const stationKey = st?.queueKey || st?.id || st?.code || selectedStationId;
+    await fetchQueue(stationKey);
+    lastRefresh = new Date();
+    renderStationList();
+    renderDetail();
   }
+
+  function startAutoRefresh() {
+    if (timer) clearInterval(timer);
+
+    // 0 / falsy verilirse auto refresh kapalı
+    if (!refreshMs || refreshMs <= 0) return;
+
+    timer = setInterval(() => {
+      if (!selectedStationId || busy) return;
+      refreshSelected().catch(() => { });
+    }, refreshMs);
+  }
+
+  (async () => {
+    await fetchStations();
+    renderStationList();
+    await refreshSelected();
+    //startAutoRefresh();
+    $("#oqFilter").addEventListener("input", renderStationList);
+    $("#oqRefresh").addEventListener("click", () => refreshSelected());
+  })().catch((err) => {
+    console.error(err);
+    viewRoot.innerHTML = `<div class="oq-card">Failed to load Queue Manager: ${escapeHtml(
+      err?.message || String(err)
+    )}</div>`;
+  });
+
+  return () => {
+    if(timer) clearInterval(timer);
+  };
 }
