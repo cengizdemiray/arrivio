@@ -82,7 +82,7 @@ exports.startService = onRequest(
                 // 1) Sadece Queued başlatılabilir
                 if (normStatus(entry.queueStatus) !== "Queued") throw new Error("NOT_QUEUED");
 
-                // 2) Aynı station’da InProgress var mı? (MM1 için kilit kural)
+                // 2) Aynı station’da InProgress var mı? 
                 const inProgQ = db
                     .collection("QueueEntry")
                     .where("stationId", "==", stationId)
@@ -92,12 +92,33 @@ exports.startService = onRequest(
                 const inProgSnap = await tx.get(inProgQ);
                 if (!inProgSnap.empty) throw new Error("ALREADY_IN_PROGRESS");
 
-                // FIFO KONTROLÜ YOK: herhangi bir queued entry başlatılabilir
+                // Prepare related booking (if any) before writes
+                const bookingId = entry.bookingId;
+                let bookingRef = null;
+                if (bookingId) {
+                    bookingRef = db.collection("Booking").doc(bookingId);
+                    await tx.get(bookingRef);
+                }
+
+                
                 tx.update(entryRef, {
                     queueStatus: "InProgress",
                     startedAt: admin.firestore.FieldValue.serverTimestamp(),
                     startedBy: operatorId ?? null,
                 });
+
+                if (bookingRef) {
+                    tx.set(
+                        bookingRef,
+                        {
+                            bookingStatus: "InProgress",
+                            queueStatus: "InProgress",
+                            startedAt: admin.firestore.FieldValue.serverTimestamp(),
+                            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                        },
+                        { merge: true }
+                    );
+                }
             });
 
             return res.status(200).json({ message: "Service started" });
@@ -145,14 +166,68 @@ exports.completeService = onRequest(
                 // startedAt yoksa tamamlamaya izin verme
                 if (!entry.startedAt) throw new Error("MISSING_STARTED_AT");
 
-                // Zaten tamamlanmışsa (normalde burada olmaz ama yine de)
+                
                 if (entry.completedAt) throw new Error("ALREADY_COMPLETED");
 
+                
+                const stationId = entry.stationId;
+                let stationRef = null;
+                let stationData = null;
+                if (stationId) {
+                    stationRef = db.collection("Station").doc(stationId);
+                    const stationSnap = await tx.get(stationRef);
+                    stationData = stationSnap.exists ? stationSnap.data() : {};
+                }
+                const bookingId = entry.bookingId;
+                let bookingRef = null;
+                if (bookingId) {
+                    bookingRef = db.collection("Booking").doc(bookingId);
+                    await tx.get(bookingRef);
+                }
+
+                const completedAt = admin.firestore.Timestamp.now();
                 tx.update(entryRef, {
                     queueStatus: "Completed",
-                    completedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    completedAt,
                     completedBy: operatorId ?? null,
                 });
+
+                // Update station stats here to avoid trigger dependency
+                if (stationRef && stationData) {
+                    const startedMs = toMillis(entry.startedAt || entry.queuedAt);
+                    const completedMs = toMillis(completedAt);
+                    if (startedMs && completedMs && completedMs > startedMs) {
+                        const serviceTimeMin = (completedMs - startedMs) / 60000;
+                        const previousTotal = Number(stationData.totalServiceTimeMin ?? 0);
+                        const previousCompletedJobs = Number(stationData.completedJobsCount ?? 0);
+                        const newTotal = previousTotal + serviceTimeMin;
+                        const newCompletedJobs = previousCompletedJobs + 1;
+                        const newAverageServicingTime = newTotal / newCompletedJobs;
+
+                        tx.set(
+                            stationRef,
+                            {
+                                totalServiceTimeMin: newTotal,
+                                completedJobsCount: newCompletedJobs,
+                                avgServiceTimeMin: newAverageServicingTime,
+                            },
+                            { merge: true }
+                        );
+                    }
+                }
+
+                if (bookingRef) {
+                    tx.set(
+                        bookingRef,
+                        {
+                            bookingStatus: "Completed",
+                            queueStatus: "Completed",
+                            completedAt,
+                            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                        },
+                        { merge: true }
+                    );
+                }
             });
 
             return res.status(200).json({ message: "Service completed" });

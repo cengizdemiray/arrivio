@@ -118,6 +118,12 @@ export function renderQueueManagerView(viewRoot, options = {}) {
     if (!selectedStationId && stations[0]) selectedStationId = stations[0].id;
   }
 
+  function findStationIndex(stationId) {
+    return stations.findIndex(
+      (s) => s.id === stationId || s.queueKey === stationId || s.code === stationId
+    );
+  }
+
   async function fetchQueue(stationId) {
     const data = await post("getStationQueue", { stationId });
     const array = Array.isArray(data) ? data : data.queue || [];
@@ -131,7 +137,7 @@ export function renderQueueManagerView(viewRoot, options = {}) {
       completedAt: q.completedAt,
     }));
 
-    const idx = stations.findIndex((s) => s.id === stationId);
+    const idx = findStationIndex(stationId);
     if (idx != -1) {
       stations[idx] = {
         ...stations[idx],
@@ -139,6 +145,13 @@ export function renderQueueManagerView(viewRoot, options = {}) {
         inServiceCount: queue.filter((q) => q.queueStatus === "InProgress").length,
       };
     }
+  }
+
+  async function refreshAllStations() {
+    if (!stations.length) return;
+    await Promise.all(
+      stations.map((s) => fetchQueue(s.queueKey || s.id || s.code))
+    );
   }
 
   async function startService(queueEntryId) {
@@ -331,6 +344,8 @@ export function renderQueueManagerView(viewRoot, options = {}) {
     if (!selectedStationId) return;
     const st = stations.find((s) => s.id === selectedStationId);
     const stationKey = st?.queueKey || st?.id || st?.code || selectedStationId;
+    await fetchStations(); // Station bilgileri güncellenebilir, önce onları çekelim
+    await refreshAllStations();
     await fetchQueue(stationKey);
     lastRefresh = new Date();
     renderStationList();
@@ -351,6 +366,7 @@ export function renderQueueManagerView(viewRoot, options = {}) {
 
   (async () => {
     await fetchStations();
+    await refreshAllStations();
     renderStationList();
     await refreshSelected();
     //startAutoRefresh();

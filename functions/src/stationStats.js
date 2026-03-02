@@ -1,4 +1,4 @@
-const { onDocumentUpdated } = require("firebase-functions/v2/firestore");
+/*const { onDocumentUpdated } = require("firebase-functions/v2/firestore");
 const admin = require("firebase-admin");
 if (!admin.apps.length) {
     admin.initializeApp();
@@ -100,4 +100,4 @@ exports.updateStationAverageServiceTime = onDocumentUpdated(
             console.error("stationStats: update failed", { stationId, error: String(err?.message || err) });
         }
     }
-);
+);*/
