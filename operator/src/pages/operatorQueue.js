@@ -26,7 +26,7 @@ export async function renderQueueManagerView(root, deps) {
       <div class="hero-row">
         <div>
           <div class="hero-title">Queue Manager</div>
-          <p class="hero-sub">View per-station queues, add carriers, mark no-show or complete.</p>
+          <p class="hero-sub">View per-station queues, start service, and complete queue items.</p>
         </div>
       </div>
     </div>
@@ -68,6 +68,20 @@ export async function renderQueueManagerView(root, deps) {
     if (Number.isFinite(value)) return `${value.toFixed(1)} min`;
     if (typeof value === 'string' && value.trim()) return value;
     return '--';
+  }
+
+  function normalizeQueueStatus(status) {
+    const normalized = String(status || '').trim().toLowerCase();
+    if (normalized === 'completed') return 'Completed';
+    if (normalized === 'in service' || normalized === 'in-service' || normalized === 'servicing') return 'Servicing';
+    if (normalized === 'scheduled' || normalized === 'waiting' || normalized === 'queued') return 'Waiting';
+    return status || '';
+  }
+
+  function isPermissionError(err) {
+    const code = String(err?.code || '').toLowerCase();
+    const message = String(err?.message || '').toLowerCase();
+    return code.includes('permission-denied') || message.includes('insufficient permissions');
   }
 
   // Keep source of truth in module-local var and inform parent cache
@@ -150,7 +164,7 @@ export async function renderQueueManagerView(root, deps) {
     const avgWait = `${Math.max(3, st.queue.length * 4)} min`;
     const inServiceCount = Number.isFinite(st.inServiceCount)
       ? st.inServiceCount
-      : (st.queue || []).filter(item => String(item.status || '').toLowerCase() === 'in service').length;
+      : (st.queue || []).filter(item => normalizeQueueStatus(item.status) === 'Servicing').length;
     const allQueueItems = Array.isArray(st.queue) ? st.queue : [];
 
     detail.innerHTML = `
@@ -186,10 +200,10 @@ export async function renderQueueManagerView(root, deps) {
               <td>${q.truck}</td>
               <td>${q.commodity || ''}</td>
               <td>${formatTimestamp(q.eta)}</td>
-              <td>${q.status || ''}</td>
+              <td>${normalizeQueueStatus(q.status)}</td>
               <td>
                 <div class="queue-actions">
-                  <button class="action-btn danger" data-action="no-show" data-id="${q.id}">No-show</button>
+                  <button class="action-btn" data-action="start" data-id="${q.id}">Start</button>
                   <button class="action-btn primary" data-action="complete" data-id="${q.id}">Complete</button>
                 </div>
               </td>
@@ -239,6 +253,29 @@ export async function renderQueueManagerView(root, deps) {
         const idx = st.queue.findIndex(q => q.id === id);
         if (idx === -1) return;
         const entry = st.queue[idx];
+        if (action === 'start') {
+          if (arriveQueueBooking) {
+            btn.disabled = true;
+            try {
+              await arriveQueueBooking(entry, 'Servicing');
+            } catch (err) {
+              if (!isPermissionError(err)) {
+                console.error('Failed to start booking service', err);
+                alert(err?.message || 'Could not start service.');
+                btn.disabled = false;
+                return;
+              }
+              console.warn('Start status persisted only locally due to permission error.', err);
+            }
+          }
+          entry.status = 'Servicing';
+          st.history = st.history || [];
+          st.history.unshift({ carrier: entry.carrier, action: 'start', at: formatNow(), truck: entry.truck });
+          persistStation(st);
+          renderStations();
+          renderDetail();
+          return;
+        }
         if (action === 'complete' && completeQueueBooking) {
           btn.disabled = true;
           try {
@@ -252,7 +289,7 @@ export async function renderQueueManagerView(root, deps) {
         }
         st.queue.splice(idx, 1);
         st.history = st.history || [];
-        st.history.unshift({ carrier: entry.carrier, action, at: formatNow(), truck: entry.truck });
+        st.history.unshift({ carrier: entry.carrier, action: 'complete', at: formatNow(), truck: entry.truck });
         persistStation(st);
         renderStations();
         renderDetail();
