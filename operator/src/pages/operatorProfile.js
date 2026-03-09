@@ -17,6 +17,13 @@ export async function renderProfileView(root, deps) {
   const operator = getCurrentOperator?.() || {};
   const stations = await loadQueueStations?.() || [];
   let focusedStation = getFocusedStation?.() || null;
+  const operatorName = operator.name || 'Operator';
+  const initials = operatorName
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() || '')
+    .join('') || 'OP';
 
   if (!focusedStation && stations.length) {
     const first = stations[0];
@@ -39,11 +46,17 @@ export async function renderProfileView(root, deps) {
     </div>
 
     <div class="profile-layout">
-      <section class="profile-card">
-        <h3>Operator Info</h3>
+      <section class="profile-card profile-card-info">
+        <div class="profile-head">
+          <div class="profile-avatar" aria-hidden="true">${initials}</div>
+          <div>
+            <h3>Operator Info</h3>
+            <p class="profile-note">Your account identity and current station focus.</p>
+          </div>
+        </div>
         <div class="profile-row">
           <div class="profile-label">Name</div>
-          <div class="profile-value">${operator.name || 'Operator'}</div>
+          <div class="profile-value">${operatorName}</div>
         </div>
         <div class="profile-row">
           <div class="profile-label">Email</div>
@@ -72,7 +85,7 @@ export async function renderProfileView(root, deps) {
         </div>
       </section>
 
-      <section class="profile-card">
+      <section class="profile-card profile-card-security">
         <h3>Change Password</h3>
         <p class="profile-note">For security, enter your current password before setting a new one.</p>
         <form id="changePasswordForm" class="profile-form" novalidate>
