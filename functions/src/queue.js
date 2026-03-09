@@ -25,6 +25,7 @@ function toMillis(value) {
 const {
     parseISO,
     slotKeyFromStart,
+    slotIdFromStart,
 } = require("./utils");
 
 //Entering Queue
@@ -32,29 +33,120 @@ exports.enterQueue = onRequest(
     { region: REGION, cors: true },
     async (req, res) => {
         try {
-            const { carrierId, stationId, slotStart, slotEnd } = req.body;
-            // Eksik veri gelirse
+            const { carrierId, stationId, slotStart, slotEnd } = req.body || {};
+
+            // Gerekli alanlar kontrol ediliyor.
             if (!carrierId || !stationId || !slotStart || !slotEnd) {
-                return res.status(400).json({ error: "All fields required" });
+                return res.status(400).json({ error: "carrierId, stationId, slotStart, slotEnd are required" });
             }
+
+            // Frontend'den gelen ISO tarihleri parse ediyoruz.
             const slotStartDate = parseISO(slotStart);
             const slotEndDate = parseISO(slotEnd);
-            const slotKey = slotKeyFromStart(slotStartDate);
-            await db.collection("QueueEntry").add({
-                carrierId,
-                stationId,
-                slotKey,
-                queueStatus: "Queued",
-                queuedAt: admin.firestore.FieldValue.serverTimestamp(),
-                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+
+            // Queue / booking hesaplarında kullanılacak slot alanları.
+            const slotKey = slotKeyFromStart(slotStartDate); // ör: "10:00"
+            const slotId = slotIdFromStart(slotStartDate);   // ör: "2026-02-28_10:00"
+
+            // Ekran görüntündeki gibi slotEnd'i sadece saat:dakika formatında saklıyoruz.
+            const slotEndLabel = slotKeyFromStart(slotEndDate);
+
+            // arrivalTime ve queuedAt alanlarını seçilen slota eşit tutuyoruz.
+            // Yani server now değil, kullanıcının booking slot zamanı yazılıyor.
+            const arrivalTimestamp = admin.firestore.Timestamp.fromDate(slotStartDate);
+            const queuedTimestamp = admin.firestore.Timestamp.fromDate(slotStartDate);
+
+            // Sayaç dokümanları.
+            // Bunlar sayesinde id'leri B-1, Q-1 formatında üretiyoruz.
+            const bookingCounterRef = db.collection("_counters").doc("booking");
+            const queueCounterRef = db.collection("_counters").doc("queueEntry");
+
+            let bookingId;
+            let queueEntryId;
+
+            await db.runTransaction(async (tx) => {
+                // Sayaçları okuyoruz.
+                const bookingCounterSnap = await tx.get(bookingCounterRef);
+                const queueCounterSnap = await tx.get(queueCounterRef);
+
+                const currentBookingNo = bookingCounterSnap.exists
+                    ? Number(bookingCounterSnap.data().lastNumber ?? 0)
+                    : 0;
+
+                const currentQueueNo = queueCounterSnap.exists
+                    ? Number(queueCounterSnap.data().lastNumber ?? 0)
+                    : 0;
+
+                const nextBookingNo = currentBookingNo + 1;
+                const nextQueueNo = currentQueueNo + 1;
+
+                bookingId = `B-${nextBookingNo}`;
+                queueEntryId = `Q-${nextQueueNo}`;
+
+                const bookingRef = db.collection("Booking").doc(bookingId);
+                const queueEntryRef = db.collection("QueueEntry").doc(queueEntryId);
+
+                // Booking dokümanı oluşturuluyor.
+                tx.set(bookingRef, {
+                    arrivalTime: arrivalTimestamp,
+                    bookingStatus: "Active",
+                    carrierId,
+                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                    queueStatus: "Queued",
+                    queuedAt: queuedTimestamp,
+                    slotEnd: slotEndLabel,
+                    slotId,
+                    slotKey,
+                    stationId,
+                    queueEntryId,
+                });
+
+                // QueueEntry dokümanı oluşturuluyor.
+                tx.set(queueEntryRef, {
+                    bookingId,
+                    carrierId,
+                    stationId,
+                    slotKey,
+                    slotEnd: slotEndLabel,
+                    slotStartAt: admin.firestore.Timestamp.fromDate(slotStartDate),
+                    slotEndAt: admin.firestore.Timestamp.fromDate(slotEndDate),
+                    queueStatus: "Queued",
+                    queuedAt: queuedTimestamp,
+                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                });
+
+                // Sayaçları güncelliyoruz.
+                tx.set(
+                    bookingCounterRef,
+                    {
+                        lastNumber: nextBookingNo,
+                        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    },
+                    { merge: true }
+                );
+
+                tx.set(
+                    queueCounterRef,
+                    {
+                        lastNumber: nextQueueNo,
+                        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    },
+                    { merge: true }
+                );
             });
-            return res.status(200).json({ message: "Entered queue" });
+
+            return res.status(200).json({
+                message: "Booking and QueueEntry created",
+                bookingId,
+                queueEntryId,
+            });
         } catch (err) {
-            console.error("enterQueueMM1 error:", err);
-            // Invalid date hatasını yakalamak için
+            console.error("enterQueue error:", err);
+
             if (String(err?.message) === "INVALID_DATE") {
                 return res.status(400).json({ error: "Invalid slotStart/slotEnd format" });
             }
+
             return res.status(500).json({ error: "Internal server error" });
         }
     }
@@ -100,7 +192,7 @@ exports.startService = onRequest(
                     await tx.get(bookingRef);
                 }
 
-                
+
                 tx.update(entryRef, {
                     queueStatus: "InProgress",
                     startedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -166,10 +258,10 @@ exports.completeService = onRequest(
                 // startedAt yoksa tamamlamaya izin verme
                 if (!entry.startedAt) throw new Error("MISSING_STARTED_AT");
 
-                
+
                 if (entry.completedAt) throw new Error("ALREADY_COMPLETED");
 
-                
+
                 const stationId = entry.stationId;
                 let stationRef = null;
                 let stationData = null;

@@ -1,6 +1,7 @@
 const SLOT_INTERVAL_MIN = 15;
 const HISTORY_DAYS = 7;
 const ACTIVE_QUEUE_STATES = ['Queued', 'InProgress'];
+const APP_TIME_ZONE = process.env.APP_TIME_ZONE || "Asia/Famagusta";
 
 // Kullanıcının seçtiği iso formatındaki tarih string'ini Date objesine çevirmek için
 function parseISO(iso) {
@@ -8,20 +9,36 @@ function parseISO(iso) {
   if (Number.isNaN(d.getTime())) throw new Error("INVALID_DATE");
   return d;
 }
+
+function datePartsInTimeZone(date, timeZone = APP_TIME_ZONE) {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
+
+  const valueOf = (type) => parts.find((p) => p.type === type)?.value;
+  return {
+    year: valueOf("year"),
+    month: valueOf("month"),
+    day: valueOf("day"),
+    hour: valueOf("hour"),
+    minute: valueOf("minute"),
+  };
+}
 // Lambda hesaplamak için kullanılıcak slotkey'i oluşturmak için. (12:45)
-function slotKeyFromStart(slotStartDate) {
-  const hh = String(slotStartDate.getHours()).padStart(2, "0");
-  const mm = String(slotStartDate.getMinutes()).padStart(2, "0");
-  return `${hh}:${mm}`; // ör: "12:45"
+function slotKeyFromStart(slotStartDate, timeZone = APP_TIME_ZONE) {
+  const { hour, minute } = datePartsInTimeZone(slotStartDate, timeZone);
+  return `${hour}:${minute}`; // ör: "12:45"
 }
 // Gün ve slotu kullanarak benzersiz bir key oluşturmak için. (2026-01-15_12:45)
-function slotIdFromStart(slotStartDate) {
-  const y = slotStartDate.getFullYear();
-  const m = String(slotStartDate.getMonth() + 1).padStart(2, "0");
-  const d = String(slotStartDate.getDate()).padStart(2, "0");
-  const hh = String(slotStartDate.getHours()).padStart(2, "0");
-  const mm = String(slotStartDate.getMinutes()).padStart(2, "0");
-  return `${y}-${m}-${d}_${hh}:${mm}`; // ör: "2026-01-15_12:45"
+function slotIdFromStart(slotStartDate, timeZone = APP_TIME_ZONE) {
+  const { year, month, day, hour, minute } = datePartsInTimeZone(slotStartDate, timeZone);
+  return `${year}-${month}-${day}_${hour}:${minute}`; // ör: "2026-01-15_12:45"
 }
 
 function minutesBetween(a, b) {
@@ -47,6 +64,7 @@ module.exports = {
   SLOT_INTERVAL_MIN,
   HISTORY_DAYS,
   ACTIVE_QUEUE_STATES,
+  APP_TIME_ZONE,
   parseISO,
   slotKeyFromStart,
   slotIdFromStart,

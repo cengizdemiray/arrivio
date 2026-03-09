@@ -6,7 +6,7 @@ if (!admin.apps.length) {
 
 const db = admin.firestore();
 
-const REGION = "us-central1";
+const REGION = "europe-west3";
 
 const {
     SLOT_INTERVAL_MIN,
@@ -43,15 +43,18 @@ exports.getStationsMM1ForSlotStart = onRequest(
 
                     const averageServiceTime = Number(s.avgServiceTimeMin ?? 0);
                     const mu = muPerMinFromAvgServiceTime(averageServiceTime);
+                    console.log("stationId:", stationId);
+                    console.log("slotKey:", JSON.stringify(slotKey));
+                    console.log("historyStart:", historyStart.toDate().toISOString());
 
                     const historyData = await db.collection("QueueEntry")
                         .where("stationId", "==", stationId)
                         .where("slotKey", "==", slotKey)
-                        .where("createdAt", ">=", historyStart)
+                        .where("slotStartAt", ">=", historyStart)
                         .where("queueStatus", "in", ["Queued", "InProgress", "Completed"])
                         .count()
                         .get();
-
+                    
                     const pastArrivals = historyData.data().count || 0;
                     const lambda = pastArrivals / (HISTORY_DAYS * SLOT_INTERVAL_MIN);
                     const wq = mm1Wq(lambda, mu);
@@ -81,4 +84,3 @@ exports.getStationsMM1ForSlotStart = onRequest(
         }
     }
 );
-
