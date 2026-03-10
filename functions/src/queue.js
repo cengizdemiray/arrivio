@@ -26,6 +26,9 @@ const {
     parseISO,
     slotKeyFromStart,
     slotIdFromStart,
+    lambdaTargetPerMin,
+    optimalTruckPerSlot,
+    muPerMinFromAvgServiceTime
 } = require("./utils");
 
 //Entering Queue
@@ -384,32 +387,67 @@ exports.cancelQueueEntry = onRequest(
     }
 );
 exports.getActiveStations = onRequest(
-    { region: REGION, cors: true },
-    async (req, res) => {
-        try {
-            const snap = await db
-                .collection("Station")
-                .where("status", "==", "active")
-                .get();
+  { region: REGION, cors: true },
+  async (req, res) => {
+    try {
+      const snap = await db
+        .collection("Station")
+        .where("status", "==", "active")
+        .get();
 
-            const stations = snap.docs.map((d) => {
-                const s = d.data() || {};
-                return {
-                    id: d.id,
-                    name: s.name || s.stationName || s.Name || s.code || "Station",
-                    code: s.code || "",
-                    status: s.status || "active",
-                    // sende alan adı avgServiceTimeMin ise:
-                    avgServiceTimeMin: Number(s.avgServiceTimeMin ?? 0),
-                };
-            });
+      const stations = snap.docs.map((d) => {
+        const s = d.data() || {};
 
-            return res.json({ stations });
-        } catch (err) {
-            console.error("getActiveStations error:", err);
-            return res.status(500).json({ error: "Internal server error" });
+        const avgServiceTimeMin = Number(s.avgServiceTimeMin ?? 0);
+        const completedJobsCount = Number(s.completedJobsCount ?? 0);
+        const totalServiceTimeMin = Number(s.totalServiceTimeMin ?? 0);
+
+        const targetUtilization = 0.8;
+        const slotTimeInterval = 15;
+
+        const muPerMin = muPerMinFromAvgServiceTime(avgServiceTimeMin);
+        const lambdaTarget = lambdaTargetPerMin(muPerMin, targetUtilization);
+        const optimalTruck = optimalTruckPerSlot(
+          avgServiceTimeMin,
+          slotTimeInterval,
+          targetUtilization
+        );
+
+        let confidence = "Low";
+        if (completedJobsCount >= 10) {
+          confidence = "High";
+        } else if (completedJobsCount >= 3) {
+          confidence = "Medium";
         }
+
+        return {
+          id: d.id,
+          name: s.name || s.stationName || s.Name || s.code || "Station",
+          code: s.code || "",
+          status: s.status || "active",
+          type: s.type || "",
+          contactName: s.contactName || "",
+          phone: s.phone || "",
+          avgServiceTimeMin,
+          completedJobsCount,
+          totalServiceTimeMin,
+
+          // hesaplanan alanlar
+          muPerMin,
+          lambdaTargetPerMin: lambdaTarget,
+          optimalTruckPerSlot: optimalTruck,
+          targetUtilization,
+          slotTimeInterval,
+          confidence,
+        };
+      });
+
+      return res.json({ stations });
+    } catch (err) {
+      console.error("getActiveStations error:", err);
+      return res.status(500).json({ error: "Internal server error" });
     }
+  }
 );
 exports.getStationQueue = onRequest(
     { region: REGION, cors: true },

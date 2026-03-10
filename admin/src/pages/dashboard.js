@@ -118,7 +118,17 @@ function setActive(viewKey) {
       })
       .catch(err => console.error('pendingApplications load error', err));
   }
+  if (viewKey === 'stats') {
+  import('./stats.js')
+    .then(mod => {
+      const root = document.getElementById('facilityStatsRoot');
+      if (root && mod.initStats) mod.initStats(root);
+    })
+    .catch(err => console.error('stats load error', err));
 }
+}
+
+
 
 nav.addEventListener("click", (e) => {
   const btn = e.target.closest(".nav-item");

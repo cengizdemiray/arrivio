@@ -60,6 +60,22 @@ function mm1Wq(lambdaPerMin, muPerMin) {
   return { stable: true, rho, Wq };
 }
 
+function lambdaTargetPerMin(targetUtilization=0.8, muPerMin){
+  if(muPerMin<=0) return 0;
+  return targetUtilization * muPerMin;
+}
+
+function optimalTruckPerSlot(avgServiceTimeMin, slotTimeInterval=15, targetUtilization = 0.8){
+  const muPerMin = muPerMinFromAvgServiceTime(avgServiceTimeMin);
+  if(muPerMin<=0) return 0;
+  const lambdaTarget = lambdaTargetPerMin(targetUtilization, muPerMin);
+  const slotCapacity = lambdaTarget * slotTimeInterval;
+  const capacity = Math.floor(slotCapacity);
+  return Math.max(1,capacity);
+}
+
+
+
 module.exports = {
   SLOT_INTERVAL_MIN,
   HISTORY_DAYS,
@@ -71,4 +87,6 @@ module.exports = {
   minutesBetween,
   muPerMinFromAvgServiceTime,
   mm1Wq,
+  lambdaTargetPerMin,
+  optimalTruckPerSlot
 };
