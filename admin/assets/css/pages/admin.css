@@ -296,6 +296,236 @@
   .right-panel{ width:100%; }
 }
 
+/* Facility Statistics v2 */
+.stats-v2-root{
+  padding: 8px 0;
+}
+
+.stats-v2-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  padding:16px 18px;
+  border-radius:14px;
+  background: linear-gradient(135deg,#eef4ff 0%,#f5fbff 55%,#f0fff8 100%);
+  border:1px solid #dce8ff;
+  margin-bottom:14px;
+}
+
+.stats-v2-head h2{
+  margin:0;
+  font-size:22px;
+  letter-spacing:.2px;
+}
+
+.stats-v2-head p{
+  margin:6px 0 0;
+  color:#475569;
+  font-size:14px;
+}
+
+.stats-v2-count{
+  white-space:nowrap;
+  padding:8px 12px;
+  border-radius:999px;
+  background:#ffffff;
+  border:1px solid #d4e2ff;
+  font-weight:700;
+  color:#1e3a8a;
+}
+
+.stats-v2-grid{
+  display:grid;
+  grid-template-columns:repeat(2, minmax(0, 1fr));
+  gap:14px;
+}
+
+.stats-v2-card{
+  background: linear-gradient(180deg,#ffffff 0%,#fbfdff 100%);
+  border:1px solid var(--border);
+  border-radius:14px;
+  padding:14px;
+  box-shadow:0 8px 24px rgba(14,24,46,.05);
+}
+
+.stats-v2-card-head{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  align-items:flex-start;
+  margin-bottom:10px;
+}
+
+.stats-v2-card h3{
+  margin:0;
+  font-size:18px;
+  font-weight:800;
+  color:#0f172a;
+}
+
+.station-code{
+  margin:4px 0 0;
+  color:#64748b;
+  font-size:12px;
+  letter-spacing:.3px;
+}
+
+.station-status{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding:6px 10px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:800;
+  text-transform:capitalize;
+  border:1px solid transparent;
+}
+
+.station-status.is-active{
+  background:#ecfdf3;
+  color:#027a48;
+  border-color:#abefc6;
+}
+
+.station-status.is-inactive{
+  background:#fef2f2;
+  color:#b42318;
+  border-color:#fecaca;
+}
+
+.station-status.is-unknown{
+  background:#f8fafc;
+  color:#334155;
+  border-color:#e2e8f0;
+}
+
+.stats-v2-meta{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:8px;
+  margin-bottom:12px;
+}
+
+.stats-v2-meta span{
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+  padding:8px 9px;
+  border-radius:10px;
+  background:#f8fbff;
+  border:1px solid #e7eefc;
+  font-size:13px;
+  color:#0f172a;
+}
+
+.stats-v2-meta strong{
+  color:#64748b;
+  font-size:11px;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:.4px;
+}
+
+.stats-v2-kpis{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:8px;
+  margin-bottom:12px;
+}
+
+.kpi-tile{
+  border-radius:10px;
+  padding:10px;
+  border:1px solid #e3ecff;
+  background:linear-gradient(180deg,#f8fbff,#f5f9ff);
+}
+
+.kpi-label{
+  display:block;
+  font-size:11px;
+  color:#64748b;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:.4px;
+}
+
+.kpi-value{
+  display:block;
+  margin-top:6px;
+  font-size:18px;
+  font-weight:800;
+  color:#0f172a;
+}
+
+.stats-v2-list{
+  margin:0;
+  padding:0;
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:8px;
+}
+
+.stats-v2-list div{
+  border-radius:10px;
+  border:1px solid #edf2f9;
+  background:#fff;
+  padding:8px 10px;
+}
+
+.stats-v2-list dt{
+  margin:0;
+  font-size:12px;
+  color:#64748b;
+}
+
+.stats-v2-list dd{
+  margin:4px 0 0;
+  font-size:14px;
+  font-weight:700;
+  color:#0f172a;
+}
+
+.stats-v2-state{
+  padding:26px 20px;
+  border-radius:12px;
+  border:1px dashed #c7d7f5;
+  background:#f8fbff;
+  color:#1e3a8a;
+  font-weight:600;
+}
+
+.stats-v2-state.is-error{
+  border-color:#fecaca;
+  background:#fff5f5;
+  color:#b42318;
+}
+
+@media (max-width:1100px){
+  .stats-v2-grid{
+    grid-template-columns:1fr;
+  }
+}
+
+@media (max-width:900px){
+  .stats-v2-head{
+    flex-direction:column;
+  }
+  .stats-v2-count{
+    align-self:flex-start;
+  }
+  .stats-v2-meta{
+    grid-template-columns:1fr;
+  }
+  .stats-v2-kpis{
+    grid-template-columns:1fr;
+  }
+  .stats-v2-list{
+    grid-template-columns:1fr;
+  }
+}
+
 /* Issue Form styles */
 .issue-root{ padding:8px 0; }
 .page-hero{ background: linear-gradient(180deg,#f8fbff,#f3f7ff); border-radius:12px; padding:18px; margin-bottom:14px; border:1px solid var(--border); }
@@ -414,4 +644,3 @@
 
 /* toast default style */
 #toastContainer .toast{ transition:opacity .3s ease; }
-

@@ -15,6 +15,7 @@ const pageTitle = document.getElementById('pageTitle');
 const logoutBtn = document.getElementById('logoutBtn');
 
 let currentViewKey = 'issue-create';
+let cleanup = null;
 
 let cachedStations = [];
 let cachedIssues = [];
@@ -107,6 +108,10 @@ if (!hasSession || !getCurrentOperator()) {
 }
 
 function setActive(viewKey) {
+  if (typeof cleanup === "function") {
+    cleanup();
+    cleanup = null;
+  }
   currentViewKey = viewKey;
   // Highlight selected nav item
   nav.querySelectorAll('.nav-item').forEach(btn => {
@@ -140,17 +145,12 @@ function setActive(viewKey) {
     });
   } else if (viewKey === 'queue-manager') {
     // Render queue manager
-    renderQueueManagerView(viewRoot, {
-      loadQueueStations,
-      loadStationQueue,
-      arriveQueueBooking,
-      completeQueueBooking,
-      formatNow,
-      getCachedStations: () => cachedStations,
-      setCachedStations: (next) => { cachedStations = next; },
-      getFocusedStation,
-      onStationFocusChange: setFocusedStation
+    pageTitle.textContent = "Queue Manager";
+    cleanup = renderQueueManagerView(viewRoot, {
+      apiBase: "https://europe-west3-arrivio-271aa.cloudfunctions.net",
+      refreshMs: 5000,
     });
+    return;
   } else if (viewKey === 'profile') {
     renderProfileView(viewRoot, {
       getCurrentOperator,
@@ -184,7 +184,7 @@ function renderProfileBar() {
   }
 
   const op = getCurrentOperator();
-  const initials = (op?.name || 'O').split(' ').map(p => p[0]).join('').slice(0,2).toUpperCase();
+  const initials = (op?.name || 'O').split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase();
   const displayName = op?.name || 'Operator';
   info.innerHTML = `
     <div style="flex:1; display:flex; align-items:flex-start; gap:12px;">
