@@ -1,6 +1,6 @@
 // js/pages/operator.js
 import { db } from '../sevices/firebaseClient.js';
-import { collection, getDocs, getDoc, doc, query, where, updateDoc, addDoc } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+import { collection, getDocs, getDoc, doc, query, where, orderBy, updateDoc, addDoc } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 import { renderIssueCreateView } from './operatorIssue.js';
 import { renderFacilityStatusView } from './operatorFacility.js';
 import { renderQueueManagerView } from './operatorQueue.js';
@@ -225,11 +225,48 @@ async function loadQueueStations(force = false) {
 
 async function loadIssues(force = false) {
   if (cachedIssues.length && !force) return cachedIssues;
-  const allowedStations = getAssignedStations().map(s => s.code);
-  cachedIssues = JSON.parse(JSON.stringify(mockIssues))
-    .filter(i => !allowedStations.length || allowedStations.includes(i.station));
+  const allowedStations = new Set(getAssignedStations().map(s => String(s.code || '').trim()).filter(Boolean));
+  try {
+    const issuesQuery = query(collection(db, 'issues'), orderBy('CreatedAt', 'desc'));
+    const snap = await getDocs(issuesQuery);
+    cachedIssues = snap.docs
+      .map((docSnap) => {
+        const data = docSnap.data() || {};
+        const createdDate = parseAnyDate(data.createdAt || data.CreatedAt || data.created || null);
+        return {
+          id: docSnap.id,
+          title: data.title || data.Title || 'Untitled issue',
+          station: data.station || data.Facility || data.facility || '',
+          reporter: data.reporter || data.Reporter || 'Operator Desk',
+          priority: data.priority || data.Priority || 'Medium',
+          status: data.status || data.Status || 'Waiting',
+          description: data.description || data.Description || '',
+          comments: Array.isArray(data.comments) ? data.comments : [],
+          created: createdDate ? formatDateTime(createdDate) : (data.created || ''),
+          createdAtMs: createdDate ? createdDate.getTime() : 0
+        };
+      })
+      .filter((issue) => !allowedStations.size || allowedStations.has(String(issue.station || '').trim()));
+    cachedIssues.sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
+    cachedIssues = cachedIssues.map(({ createdAtMs, ...item }) => item);
+    return cachedIssues;
+  } catch (err) {
+    console.error('Could not load issues from Firestore', err);
+  }
+
+  cachedIssues = JSON.parse(JSON.stringify(mockIssues));
+  cachedIssues = cachedIssues.filter(i => !allowedStations.size || allowedStations.has(String(i.station || '').trim()));
   cachedIssues.sort((a, b) => (b.created || '').localeCompare(a.created || ''));
   return cachedIssues;
+}
+
+function formatDateTime(date) {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+  const hh = String(date.getHours()).padStart(2, '0');
+  const mi = String(date.getMinutes()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
 }
 
 async function loadFacility(force = false) {

@@ -1,5 +1,4 @@
-
-import { auth, db } from "../app/config.js";
+﻿import { auth, db } from "../app/config.js";
 import { issues as mockIssues } from "../../data/mockIssues.js";
 import {
   collection,
@@ -14,7 +13,6 @@ import {
 
 export function initIssueForm(root, options = {}) {
   const mode = options.mode || "self";
-  // default to real Firestore unless explicitly requested mock mode
   const isMockMode = options.mock === true;
 
   const showCreate = mode === "self";
@@ -50,10 +48,7 @@ export function initIssueForm(root, options = {}) {
             </select>
           </div>
 
-          <button id="submitIssueBtn" class="btn btn-primary">
-            Submit Issue
-          </button>
-
+          <button id="submitIssueBtn" class="btn btn-primary">Submit Issue</button>
           <div id="formMsg" style="margin-top:10px;font-size:13px;"></div>
         </div>
         `
@@ -75,6 +70,7 @@ export function initIssueForm(root, options = {}) {
   const formMsg = root.querySelector("#formMsg");
   const listEl = root.querySelector("#issueList");
   const listTitle = root.querySelector("#issueListTitle");
+  let currentIssues = [];
 
   if (mode === "view") listTitle.textContent = "All Issues";
   if (mode === "solve") listTitle.textContent = "Solved Issues";
@@ -115,7 +111,8 @@ export function initIssueForm(root, options = {}) {
         Description: description,
         Facility: facility,
         Priority: priority,
-        Status: "Open",
+        Status: "Waiting",
+
         CreatedByUid: user.uid,
         Role: "Operator",
         CreatedAt: serverTimestamp()
@@ -126,10 +123,10 @@ export function initIssueForm(root, options = {}) {
       facilityEl.value = "";
       priorityEl.value = "Medium";
 
-      setMsg("Issue created successfully ✅", "success");
+      setMsg("Issue created successfully", "success");
     } catch (err) {
       console.error("Issue create error:", err);
-      setMsg(err.message || "Failed to create issue.", "error");
+      setMsg(err?.message || "Failed to create issue.", "error");
     }
   }
 
@@ -145,22 +142,25 @@ export function initIssueForm(root, options = {}) {
       q,
       (snap) => {
         const user = auth.currentUser;
-        const issues = snap.docs.map((d) => normalizeIssue({ id: d.id, ...d.data() }));
-        renderIssues(applyIssueFilters(issues, user));
+        currentIssues = snap.docs.map((d) => normalizeIssue({ id: d.id, ...d.data() }));
+        renderIssues(applyIssueFilters(currentIssues, user));
       },
       (err) => {
         console.error("Issue snapshot error:", err);
-        renderIssues(applyIssueFilters((mockIssues || []).map(normalizeIssue), auth.currentUser));
+        currentIssues = (mockIssues || []).map(normalizeIssue);
+        renderIssues(applyIssueFilters(currentIssues, auth.currentUser));
       }
     );
   } else {
-    renderIssues(applyIssueFilters((mockIssues || []).map(normalizeIssue), auth.currentUser));
+    currentIssues = (mockIssues || []).map(normalizeIssue);
+    renderIssues(applyIssueFilters(currentIssues, auth.currentUser));
   }
 
   root._unsubIssues = unsub;
 
   if (mode === "self" && !auth.currentUser && isMockMode) {
-    renderIssues(applyIssueFilters((mockIssues || []).map(normalizeIssue), null));
+    currentIssues = (mockIssues || []).map(normalizeIssue);
+    renderIssues(applyIssueFilters(currentIssues, null));
   }
 
   function normalizeIssue(raw) {
@@ -170,7 +170,7 @@ export function initIssueForm(root, options = {}) {
       Description: raw.Description ?? raw.description ?? "",
       Facility: raw.Facility ?? raw.station ?? raw.facility ?? "",
       Priority: raw.Priority ?? raw.priority ?? "Medium",
-      Status: raw.Status ?? raw.status ?? "Open",
+      Status: raw.Status ?? raw.status ?? "Waiting",
       CreatedByUid: raw.CreatedByUid ?? raw.createdByUid ?? raw.reporterUid ?? null,
       _raw: raw
     };
@@ -192,34 +192,38 @@ export function initIssueForm(root, options = {}) {
 
   async function markResolved(issueId, commentText = "") {
     if (isMockMode) {
-      const target = mockIssues.find((i) => {
-        const id = i.id || i.Id || i.issueId;
-        return String(id) === String(issueId);
-      });
+      const target = mockIssues.find((i) => String(i.id || i.Id || i.issueId) === String(issueId));
       if (target) {
-        target.status = "Resolved";
-        target.Status = "Resolved";
+        target.status = "Solved";
+        target.Status = "Solved";
         const comment = (commentText || "").trim();
         if (comment) {
           if (!Array.isArray(target.comments)) target.comments = [];
-          target.comments.push({
-            by: "Admin",
-            text: comment,
-            time: new Date().toISOString()
-          });
+          target.comments.push({ by: "Admin", text: comment, time: new Date().toISOString() });
         }
       }
-      renderIssues(applyIssueFilters(mockIssues.map(normalizeIssue), auth.currentUser));
+      currentIssues = mockIssues.map(normalizeIssue);
+      renderIssues(applyIssueFilters(currentIssues, auth.currentUser));
       return;
     }
 
     try {
       if (formMsg) setMsg("Updating issue...", "info");
       await updateDoc(doc(db, "issues", issueId), {
-        Status: "Resolved",
+        Status: "Solved",
+
         UpdatedAt: serverTimestamp()
       });
-      if (formMsg) setMsg("Issue resolved ✅", "success");
+
+      // Optimistic UI update so item immediately leaves "view" and appears in "solve".
+      currentIssues = currentIssues.map((i) =>
+        String(i.id) === String(issueId)
+          ? { ...i, Status: "Solved", _raw: { ...(i._raw || {}), Status: "Solved" } }
+          : i
+      );
+      renderIssues(applyIssueFilters(currentIssues, auth.currentUser));
+
+      if (formMsg) setMsg("Issue solved", "success");
     } catch (err) {
       console.error("markResolved error:", err);
       if (formMsg) setMsg(err?.message || "Failed to resolve issue.", "error");
@@ -248,7 +252,7 @@ export function initIssueForm(root, options = {}) {
                 ? `
                   <div class="issue-actions">
                     <textarea class="issue-comment" placeholder="Add comment..."></textarea>
-                    <button class="btn btn-sm btn-primary" data-action="resolve" data-id="${escapeHtml(i.id)}">Mark Resolved</button>
+                    <button class="btn btn-sm btn-primary" data-action="resolve" data-id="${escapeHtml(i.id)}">Mark Solved</button>
                   </div>
                 `
                 : ""

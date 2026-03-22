@@ -1,6 +1,7 @@
-// js/pages/operatorIssue.js
+﻿// js/pages/operatorIssue.js
 import { db } from '../sevices/firebaseClient.js';
 import { addDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+
 export async function renderIssueCreateView(root, deps) {
   const {
     loadQueueStations,
@@ -12,7 +13,7 @@ export async function renderIssueCreateView(root, deps) {
 
   root.innerHTML = `<div class="card" style="padding:20px;">Loading stations...</div>`;
   await loadQueueStations?.();
-  await loadIssues?.();
+  await loadIssues?.(true);
 
   root.innerHTML = `
     <div class="operator-hero">
@@ -92,16 +93,19 @@ export async function renderIssueCreateView(root, deps) {
   const recentDetailDesc = root.querySelector('#recentDetailDesc');
   const reporterInput = root.querySelector('#issueReporter');
 
-  // Populate station options after async load (supports operator-specific filtering upstream)
   const stations = (await loadQueueStations?.()) || [];
   stationSelect.innerHTML = stations.map(s => `<option value="${s.code}">${s.name} (${s.code})</option>`).join('');
+
+  function isResolved(issue) {
+    return ["resolved", "solved"].includes(String(issue?.status || issue?.Status || '').toLowerCase());
+  }
 
   function renderRecent(list) {
     recent.innerHTML = '';
     (list || []).slice(0, 4).forEach(i => {
-      const statusText = i.status === 'Resolved' ? 'Solved' : 'Waiting';
+      const statusText = isResolved(i) ? 'Solved' : 'Waiting';
       const li = document.createElement('li');
-      li.innerHTML = `<strong>${i.title}</strong><div class="meta">${i.station} · ${i.priority} · ${i.created || ''}</div><div class="meta" style="color:${statusText === 'Solved' ? '#0b6b3a' : '#92400e'};">${statusText}</div>`;
+      li.innerHTML = `<strong>${i.title}</strong><div class="meta">${i.station} - ${i.priority} - ${i.created || ''}</div><div class="meta" style="color:${statusText === 'Solved' ? '#0b6b3a' : '#92400e'};">${statusText}</div>`;
       li.style.cursor = 'pointer';
       li.addEventListener('click', () => showRecentDetail(i));
       recent.appendChild(li);
@@ -110,18 +114,16 @@ export async function renderIssueCreateView(root, deps) {
 
   function showRecentDetail(issue) {
     if (!issue || !recentDetail) return;
-    // Quick detail card to check status and description
     recentDetailTitle.textContent = issue.title;
-    const statusText = issue.status === 'Resolved' ? 'Solved' : 'Waiting';
+    const statusText = isResolved(issue) ? 'Solved' : 'Waiting';
     const created = issue.created || '';
-    recentDetailMeta.textContent = `${issue.station} · ${statusText} · ${created}`;
+    recentDetailMeta.textContent = `${issue.station} - ${statusText} - ${created}`;
     recentDetailDesc.textContent = issue.description || 'No description';
     recentDetail.style.display = 'block';
   }
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    // Basic required fields guard
     const title = root.querySelector('#issueTitle').value.trim();
     const station = stationSelect.value;
     const priority = root.querySelector('#issuePriority').value;
@@ -137,7 +139,7 @@ export async function renderIssueCreateView(root, deps) {
       reporter,
       created: formatNow(),
       priority,
-      status: 'Open',
+      status: 'Waiting',
       description: description || 'Operator created issue.',
       comments: [{ by: reporter, text: 'Issue logged from operator panel.', time: formatNow() }]
     };
@@ -148,13 +150,19 @@ export async function renderIssueCreateView(root, deps) {
 
     try {
       const docRef = await addDoc(collection(db, 'issues'), {
+        Title: title,
+        Description: newIssue.description,
+        Facility: station,
+        Priority: priority,
+        Status: 'Waiting',
+        CreatedAt: serverTimestamp(),
         title,
         station,
         reporter,
         created: newIssue.created,
         createdAt: serverTimestamp(),
         priority,
-        status: 'Open',
+        status: 'Waiting',
         description: newIssue.description,
         comments: newIssue.comments
       });
