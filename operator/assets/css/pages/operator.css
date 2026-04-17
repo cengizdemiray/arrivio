@@ -274,7 +274,7 @@
 .form-row input, .form-row select{ padding:8px 10px; border-radius:8px; border:1px solid var(--border); }
 .form-actions{ display:flex; gap:8px; margin-top:12px; }
 .btn{ padding:10px 14px; border-radius:12px; border:1px solid var(--border); background:#fff; cursor:pointer; transition:transform .12s ease, box-shadow .12s ease; }
-.btn-primary{ background: linear-gradient(120deg, var(--primary), #14b8a6); color:#fff; border:none; box-shadow:0 12px 24px rgba(14, 165, 164, 0.2); }
+.btn.btn-primary{ background: linear-gradient(120deg, var(--primary), #14b8a6); color:#fff; border:none; box-shadow:0 12px 24px rgba(14, 165, 164, 0.2); }
 .btn:hover{ transform: translateY(-1px); }
 
 /* Operating hours grid */
@@ -433,7 +433,7 @@
 .detail-card{ background:#fff; border-radius:12px; padding:18px; border:1px solid var(--border); align-self:flex-start; min-height:260px; position:sticky; top:18px; box-shadow:0 10px 30px rgba(14,24,46,0.04); }
 .detail-card h3{ margin-top:0; }
 .detail-card .btn{ padding:10px 14px; }
-.detail-card .btn-primary{ padding:10px 16px; }
+.detail-card .btn.btn-primary{ padding:10px 16px; }
 .meta{ display:flex; gap:8px; color:var(--muted); font-size:13px; margin-bottom:8px; }
 .detail-desc{ margin:10px 0 12px 0; color:#111827; }
 .comments{ max-height:220px; overflow:auto; margin-bottom:8px; }
@@ -460,7 +460,7 @@
 .form-col label{ font-weight:600; margin-bottom:6px; }
 .form-col input, .form-col select{ padding:10px; border-radius:8px; border:1px solid var(--border); }
 .bottom-actions{ display:flex; justify-content:flex-end; gap:10px; margin-top:8px; }
-.btn-primary{ padding:10px 14px; }
+.btn.btn-primary{ padding:10px 14px; }
 
 @media (max-width:900px){
   .form-grid{ grid-template-columns:1fr; }

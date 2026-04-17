@@ -115,13 +115,13 @@
   transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
 }
 
-.btn-primary{
+.btn.btn-primary{
   background: linear-gradient(120deg, var(--primary), #14b8a6);
   border-color: transparent;
   color: #fff;
   box-shadow: 0 12px 24px rgba(14, 165, 164, 0.22);
 }
-.btn-primary:hover{
+.btn.btn-primary:hover{
   background: linear-gradient(120deg, var(--primary-hover), #0f766e);
   transform: translateY(-1px);
 }

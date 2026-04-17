@@ -137,11 +137,7 @@ function setActive(viewKey) {
     // Render facility status controls
     renderFacilityStatusView(viewRoot, {
       loadFacility,
-      formatNow,
       loadQueueStations,
-      getCachedStations: () => cachedStations,
-      getCachedFacility: () => cachedFacility,
-      setCachedFacility: (next) => { cachedFacility = next; }
     });
   } else if (viewKey === 'queue-manager') {
     // Render queue manager
@@ -271,6 +267,29 @@ function formatDateTime(date) {
 
 async function loadFacility(force = false) {
   if (cachedFacility && !force) return cachedFacility;
+  try {
+    console.log('[loadFacility] Querying Firestore collection "Facility"...');
+    const snap = await getDocs(collection(db, 'Facility'));
+    console.log('[loadFacility] Got snapshot, empty:', snap.empty, 'size:', snap.size);
+    if (!snap.empty) {
+      const docSnap = snap.docs[0];
+      const data = docSnap.data() || {};
+      console.log('[loadFacility] Raw Firestore data:', JSON.stringify(data));
+      cachedFacility = {
+        docId: docSnap.id,
+        facilityId: data.Facility_ID || data.facilityId || '',
+        name: data.Name || data.name || '',
+        address: data.Adress || data.Address || data.address || '',
+        capacity: data.Capacity || data.capacity || 0,
+        status: data.Status || data.status || 'Active'
+      };
+      console.log('[loadFacility] Mapped facility:', cachedFacility);
+      return cachedFacility;
+    }
+    console.warn('[loadFacility] Facility collection is empty');
+  } catch (err) {
+    console.error('[loadFacility] ERROR reading Facility collection:', err);
+  }
   cachedFacility = { ...mockFacility };
   return cachedFacility;
 }
@@ -316,6 +335,9 @@ async function fetchStationsFromFirestore() {
         code: stationId,
         name: data.name || data.stationName || data.Name || stationId || 'Station',
         status: normalizeStationStatus(data.status),
+        type: data.type || '',
+        contactName: data.contactName || '',
+        phone: data.phone || '',
         eta: data.eta || '',
         avgServiceTimeMin: Number.isFinite(avgServiceTimeMin) ? avgServiceTimeMin : null,
         inServiceCount,
