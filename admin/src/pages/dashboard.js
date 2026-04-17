@@ -118,6 +118,15 @@ function setActive(viewKey) {
       })
       .catch(err => console.error('pendingApplications load error', err));
   }
+  if (viewKey === 'facility-edit') {
+    import('./facilityEdit.js')
+      .then(mod => {
+        const root = document.getElementById('facilityEditRoot');
+        if (root && mod.initFacilityEdit) mod.initFacilityEdit(root);
+      })
+      .catch(err => console.error('facilityEdit load error', err));
+  }
+
   if (viewKey === 'stats') {
   import('./stats.js')
     .then(mod => {
