@@ -321,30 +321,28 @@ export function normalizeIssue(raw) {
   };
 }
 
+
+
 /**
- * Filter issues by mode:
- * - 'self': only issues created by the current user
- * - 'view': unresolved issues
- * - 'solve': resolved/solved issues
+ * Search issues by query string across Title, Description, Facility.
  */
-export function filterIssuesByMode(issues, mode, currentUserUid = null) {
-  let list = issues;
-
-  if (mode === 'self' && currentUserUid) {
-    list = list.filter(i => i.CreatedByUid === currentUserUid);
-  }
-  if (mode === 'view') {
-    list = list.filter(i =>
-      !['resolved', 'closed', 'solved'].includes(String(i.Status || '').toLowerCase())
+export function searchIssues(issues, query = '') {
+  const q = (query || '').trim().toLowerCase();
+  if (!q) return issues;
+  return issues.filter(i => {
+    return (
+      String(i.Title || '').toLowerCase().includes(q) ||
+      String(i.Description || '').toLowerCase().includes(q) ||
+      String(i.Facility || '').toLowerCase().includes(q)
     );
-  }
-  if (mode === 'solve') {
-    list = list.filter(i =>
-      ['resolved', 'closed', 'solved'].includes(String(i.Status || '').toLowerCase())
-    );
-  }
+  });
+}
 
-  return list;
+/**
+ * Build the Firestore update payload for resolving an issue.
+ */
+export function buildIssueResolvePayload() {
+  return { Status: 'Solved' };
 }
 
 /* ═══════════════════════════════════════════════

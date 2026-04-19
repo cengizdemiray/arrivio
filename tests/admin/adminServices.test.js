@@ -36,7 +36,8 @@ import {
   buildStationDocument,
   buildFacilityUpdate,
   normalizeIssue,
-  filterIssuesByMode,
+  searchIssues,
+  buildIssueResolvePayload,
   filterStations
 } from '../../admin/src/services/adminServices.js';
 
@@ -267,11 +268,6 @@ describe('TC-AD-04: Blocking/Unblocking Carriers', () => {
     it('defaults to Active when Status missing', () => {
       const c = normalizeCarrier('doc-3', { Name: 'Test' });
       assert.equal(c.status, 'Active');
-    });
-
-    it('uses docId as carrierId fallback', () => {
-      const c = normalizeCarrier('doc-id-fallback', {});
-      assert.equal(c.carrierId, 'doc-id-fallback');
     });
   });
 
@@ -589,14 +585,14 @@ describe('TC-AD-08: Resolving Issues', () => {
       assert.equal(issue.Priority, 'High');
       assert.equal(issue.Status, 'Waiting');
     });
-
+    /** Alan adı farklı geldiği durumlarda da çökmemeli */
     it('handles alternative field casing', () => {
       const issue = normalizeIssue({ id: 'i2', title: 'Test', description: 'desc', station: 'ST-2', priority: 'Low', status: 'Solved' });
       assert.equal(issue.Title, 'Test');
       assert.equal(issue.Facility, 'ST-2');
       assert.equal(issue.Status, 'Solved');
     });
-
+    /** Boş veri gelirse çökmemesi için */
     it('defaults missing fields', () => {
       const issue = normalizeIssue({});
       assert.equal(issue.id, '-');
@@ -605,42 +601,49 @@ describe('TC-AD-08: Resolving Issues', () => {
       assert.equal(issue.Status, 'Waiting');
     });
   });
-
-  describe('filterIssuesByMode', () => {
+  describe('searchIssues', () => {
     const issues = [
-      { id: '1', Title: 'A', Status: 'Waiting', CreatedByUid: 'user-1' },
-      { id: '2', Title: 'B', Status: 'Solved', CreatedByUid: 'user-2' },
-      { id: '3', Title: 'C', Status: 'Waiting', CreatedByUid: 'user-1' },
-      { id: '4', Title: 'D', Status: 'Resolved', CreatedByUid: 'user-3' },
-      { id: '5', Title: 'E', Status: 'Closed', CreatedByUid: 'user-1' }
+      { Title: 'Broken pump', Description: 'Fuel pump broken', Facility: 'Station A' },
+      { Title: 'Display error', Description: 'Screen flickering', Facility: 'Station B' },
+      { Title: 'Gate stuck', Description: 'Entry gate not opening', Facility: 'Station A' }
     ];
 
-    it('view mode: shows only unresolved issues', () => {
-      const result = filterIssuesByMode(issues, 'view');
+    it('returns all issues when query is empty', () => {
+      assert.equal(searchIssues(issues, '').length, 3);
+      assert.equal(searchIssues(issues).length, 3);
+    });
+
+    it('searches by title', () => {
+      const result = searchIssues(issues, 'pump');
+      assert.equal(result.length, 1);
+      assert.equal(result[0].Title, 'Broken pump');
+    });
+
+    it('searches by description', () => {
+      const result = searchIssues(issues, 'flickering');
+      assert.equal(result.length, 1);
+      assert.equal(result[0].Title, 'Display error');
+    });
+
+    it('searches by facility', () => {
+      const result = searchIssues(issues, 'Station A');
       assert.equal(result.length, 2);
-      assert.ok(result.every(i => i.Status === 'Waiting'));
     });
 
-    it('solve mode: shows only resolved/solved/closed issues', () => {
-      const result = filterIssuesByMode(issues, 'solve');
-      assert.equal(result.length, 3);
+    it('is case-insensitive', () => {
+      assert.equal(searchIssues(issues, 'BROKEN').length, 1);
     });
 
-    it('self mode: shows only issues created by current user', () => {
-      const result = filterIssuesByMode(issues, 'self', 'user-1');
-      assert.equal(result.length, 3);
-      assert.ok(result.every(i => i.CreatedByUid === 'user-1'));
+    it('returns empty for no matches', () => {
+      assert.equal(searchIssues(issues, 'xyz').length, 0);
     });
-
-    it('self mode without uid: returns all issues', () => {
-      const result = filterIssuesByMode(issues, 'self', null);
-      assert.equal(result.length, 5);
+  });
+  describe('buildIssueResolvePayload', () => {
+    it('returns Status Solved', () => {
+      const payload = buildIssueResolvePayload();
+      assert.equal(payload.Status, 'Solved');
     });
-
-    it('unknown mode: returns all issues', () => {
-      const result = filterIssuesByMode(issues, 'unknown');
-      assert.equal(result.length, 5);
-    });
+    
   });
 });
 

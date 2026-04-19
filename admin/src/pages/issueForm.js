@@ -1,283 +1,173 @@
-﻿import { auth, db } from "../app/config.js";
-import { issues as mockIssues } from "../../data/mockIssues.js";
+/* ... importlar aynı kalıyor ... */
+import { auth, db } from "../app/config.js";
 import {
   collection,
-  addDoc,
   onSnapshot,
   doc,
   updateDoc,
   serverTimestamp,
   query,
+  where, // <-- Eklendi
   orderBy
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
-
+import {
+  normalizeIssue,
+  searchIssues,
+  buildIssueResolvePayload
+} from "../services/adminServices.js";
 export function initIssueForm(root, options = {}) {
-  const mode = options.mode || "self";
+  const mode = options.mode || "view"; // "view" veya "solve"
   const isMockMode = options.mock === true;
 
-  const showCreate = mode === "self";
+  // Modlara göre hangi statüyü bekliyoruz?
+  // "view" modunda aktif sorunları (Waiting), "solve" modunda çözülenleri (Solved) gösteriyoruz.
+  const targetStatus = mode === "solve" ? "Solved" : "Waiting";
+
+  /* ── Hero (Aynı kalabilir veya targetStatus'a göre güncellenir) ── */
+  const heroTitle = mode === "solve" ? "Solved Issues" : "Active Issues";
+  const heroSub   = mode === "solve" ? "Browse resolved/closed issues."
+                  : "View all active issues and mark them as solved.";
+  const heroIcon  = mode === "solve" ? "✔" : "📋";
+
   root.innerHTML = `
-    <div class="issue-layout ${showCreate ? "" : "issue-layout--list-only"}">
-      ${
-        showCreate
-          ? `
-        <div class="issue-form">
-          <h3>Create Issue</h3>
-
-          <div class="form-row">
-            <label>Title</label>
-            <input id="issueTitle" type="text" placeholder="Issue title" />
+    <div class="issue-root">
+      <div class="page-hero" style="margin-bottom:14px;">
+        <div class="hero-inner">
+          <div class="hero-icon">${heroIcon}</div>
+          <div>
+            <div class="hero-title">${heroTitle}</div>
+            <div class="hero-sub">${heroSub}</div>
           </div>
-
-          <div class="form-row">
-            <label>Description</label>
-            <textarea id="issueDesc" placeholder="Describe the issue..."></textarea>
-          </div>
-
-          <div class="form-row">
-            <label>Facility</label>
-            <input id="issueFacility" type="text" placeholder="Facility name" />
-          </div>
-
-          <div class="form-row">
-            <label>Priority</label>
-            <select id="issuePriority">
-              <option value="Low">Low</option>
-              <option value="Medium" selected>Medium</option>
+        </div>
+      </div>
+      <div class="issue-layout issue-layout--list-only">
+        <div class="issue-list-section">
+          <div class="issue-filter-bar">
+            <input id="issueSearch" type="text" placeholder="Search issues..." class="issue-search-input" />
+            <select id="issuePriorityFilter" class="issue-filter-select">
+              <option value="all">All Priorities</option>
               <option value="High">High</option>
+              <option value="Medium">Medium</option>
+              <option value="Low">Low</option>
             </select>
           </div>
-
-          <button id="submitIssueBtn" class="btn btn-primary">Submit Issue</button>
-          <div id="formMsg" style="margin-top:10px;font-size:13px;"></div>
+          <div id="issueCount" class="issue-count"></div>
+          <div id="issueList" class="issue-list"></div>
         </div>
-        `
-          : ``
-      }
-
-      <div class="issue-list">
-        <h3 id="issueListTitle">My Issues</h3>
-        <div id="issueList"></div>
       </div>
     </div>
   `;
 
-  const titleEl = root.querySelector("#issueTitle");
-  const descEl = root.querySelector("#issueDesc");
-  const facilityEl = root.querySelector("#issueFacility");
-  const priorityEl = root.querySelector("#issuePriority");
-  const submitBtn = root.querySelector("#submitIssueBtn");
-  const formMsg = root.querySelector("#formMsg");
-  const listEl = root.querySelector("#issueList");
-  const listTitle = root.querySelector("#issueListTitle");
+  const listEl       = root.querySelector("#issueList");
+  const searchEl     = root.querySelector("#issueSearch");
+  const priorityFilt = root.querySelector("#issuePriorityFilter");
+  const countEl      = root.querySelector("#issueCount");
+
   let currentIssues = [];
 
-  if (mode === "view") listTitle.textContent = "All Issues";
-  if (mode === "solve") listTitle.textContent = "Solved Issues";
+  /* ── Filtering ── */
+  function getFilteredIssues() {
+    // 1. Önce searchIssues'a ana listeyi (currentIssues) gönderiyoruz (Hata burada düzeltildi)
+    let list = searchIssues(currentIssues, searchEl ? searchEl.value : '');
 
-  const setMsg = (msg = "", type = "info") => {
-    if (!formMsg) return;
-    formMsg.textContent = msg;
-    formMsg.style.color =
-      type === "error" ? "#b42318" :
-      type === "success" ? "#027a48" :
-      "#344054";
-  };
-
-  async function submitIssue() {
-    setMsg("");
-
-    const user = auth.currentUser;
-    if (!user) {
-      setMsg("Not logged in.", "error");
-      return;
-    }
-
-    const title = titleEl.value.trim();
-    const description = descEl.value.trim();
-    const facility = facilityEl.value.trim();
-    const priority = priorityEl.value;
-
-    if (!title || !description) {
-      setMsg("Title and description are required.", "error");
-      return;
-    }
-
-    try {
-      setMsg("Submitting...", "info");
-
-      await addDoc(collection(db, "issues"), {
-        Title: title,
-        Description: description,
-        Facility: facility,
-        Priority: priority,
-        Status: "Waiting",
-
-        CreatedByUid: user.uid,
-        Role: "Operator",
-        CreatedAt: serverTimestamp()
-      });
-
-      titleEl.value = "";
-      descEl.value = "";
-      facilityEl.value = "";
-      priorityEl.value = "Medium";
-
-      setMsg("Issue created successfully", "success");
-    } catch (err) {
-      console.error("Issue create error:", err);
-      setMsg(err?.message || "Failed to create issue.", "error");
-    }
-  }
-
-  if (showCreate && submitBtn) {
-    submitBtn.addEventListener("click", submitIssue);
-  }
-
-  const q = query(collection(db, "issues"), orderBy("CreatedAt", "desc"));
-
-  let unsub = null;
-  if (!isMockMode) {
-    unsub = onSnapshot(
-      q,
-      (snap) => {
-        const user = auth.currentUser;
-        currentIssues = snap.docs.map((d) => normalizeIssue({ id: d.id, ...d.data() }));
-        renderIssues(applyIssueFilters(currentIssues, user));
-      },
-      (err) => {
-        console.error("Issue snapshot error:", err);
-        currentIssues = (mockIssues || []).map(normalizeIssue);
-        renderIssues(applyIssueFilters(currentIssues, auth.currentUser));
-      }
-    );
-  } else {
-    currentIssues = (mockIssues || []).map(normalizeIssue);
-    renderIssues(applyIssueFilters(currentIssues, auth.currentUser));
-  }
-
-  root._unsubIssues = unsub;
-
-  if (mode === "self" && !auth.currentUser && isMockMode) {
-    currentIssues = (mockIssues || []).map(normalizeIssue);
-    renderIssues(applyIssueFilters(currentIssues, null));
-  }
-
-  function normalizeIssue(raw) {
-    return {
-      id: raw.id || raw.Id || raw.issueId || "-",
-      Title: raw.Title ?? raw.title ?? "Untitled",
-      Description: raw.Description ?? raw.description ?? "",
-      Facility: raw.Facility ?? raw.station ?? raw.facility ?? "",
-      Priority: raw.Priority ?? raw.priority ?? "Medium",
-      Status: raw.Status ?? raw.status ?? "Waiting",
-      CreatedByUid: raw.CreatedByUid ?? raw.createdByUid ?? raw.reporterUid ?? null,
-      _raw: raw
-    };
-  }
-
-  function applyIssueFilters(items, user) {
-    let list = items;
-    if (mode === "self" && user) {
-      list = list.filter((i) => i.CreatedByUid === user.uid);
-    }
-    if (mode === "view") {
-      list = list.filter((i) => !["resolved", "closed", "solved"].includes(String(i.Status || "").toLowerCase()));
-    }
-    if (mode === "solve") {
-      list = list.filter((i) => ["resolved", "closed", "solved"].includes(String(i.Status || "").toLowerCase()));
+    // 2. Öncelik filtresi
+    if (priorityFilt && priorityFilt.value !== 'all') {
+      list = list.filter(i => i.Priority === priorityFilt.value);
     }
     return list;
   }
 
-  async function markResolved(issueId, commentText = "") {
-    if (isMockMode) {
-      const target = mockIssues.find((i) => String(i.id || i.Id || i.issueId) === String(issueId));
-      if (target) {
-        target.status = "Solved";
-        target.Status = "Solved";
-        const comment = (commentText || "").trim();
-        if (comment) {
-          if (!Array.isArray(target.comments)) target.comments = [];
-          target.comments.push({ by: "Admin", text: comment, time: new Date().toISOString() });
-        }
+  function refreshList() {
+    const filtered = getFilteredIssues();
+    if (countEl) countEl.textContent = `${filtered.length} issue${filtered.length !== 1 ? 's' : ''} found`;
+    renderIssues(filtered);
+  }
+
+  if (searchEl)     searchEl.addEventListener("input", refreshList);
+  if (priorityFilt) priorityFilt.addEventListener("change", refreshList);
+
+  /* ── Firestore Listener (Sorgu Filtrelendi) ── */
+  // Sadece targetStatus (Waiting veya Solved) olanları getiriyoruz
+  const q = query(
+    collection(db, "issues"), 
+    where("Status", "==", targetStatus),
+    orderBy("CreatedAt", "desc")
+  );
+
+  let unsub = null;
+  if (!isMockMode) {
+    unsub = onSnapshot(q, (snap) => {
+        currentIssues = snap.docs.map(d => normalizeIssue({ id: d.id, ...d.data() }));
+        refreshList();
+      }, (err) => {
+        console.error("Issue snapshot error:", err);
       }
-      currentIssues = mockIssues.map(normalizeIssue);
-      renderIssues(applyIssueFilters(currentIssues, auth.currentUser));
-      return;
-    }
+    );
+  }
+  root._unsubIssues = unsub;
 
+  /* ── Mark Resolved ── */
+  async function markResolved(issueId) {
     try {
-      if (formMsg) setMsg("Updating issue...", "info");
+      const payload = buildIssueResolvePayload(); // { Status: "Solved" }
+      
+      // 1. Firestore Güncelleme
       await updateDoc(doc(db, "issues", issueId), {
-        Status: "Solved",
-
+        ...payload,
         UpdatedAt: serverTimestamp()
       });
 
-      // Optimistic UI update so item immediately leaves "view" and appears in "solve".
-      currentIssues = currentIssues.map((i) =>
-        String(i.id) === String(issueId)
-          ? { ...i, Status: "Solved", _raw: { ...(i._raw || {}), Status: "Solved" } }
-          : i
-      );
-      renderIssues(applyIssueFilters(currentIssues, auth.currentUser));
-
-      if (formMsg) setMsg("Issue solved", "success");
+      // 2. Yerel listeden kaldır (Çünkü artık "Waiting" değil, listeden gitmeli)
+      currentIssues = currentIssues.filter(i => String(i.id) !== String(issueId));
+      refreshList();
+      
+      console.log(`Issue ${issueId} marked as solved.`);
     } catch (err) {
       console.error("markResolved error:", err);
-      if (formMsg) setMsg(err?.message || "Failed to resolve issue.", "error");
+      alert("Failed to resolve issue.");
     }
   }
 
+  /* ── Render ── */
   function renderIssues(issues) {
     if (!issues.length) {
-      listEl.innerHTML = `<div style="font-size:13px;color:#6b7280">No issues yet.</div>`;
+      listEl.innerHTML = `<div style="font-size:13px;color:#6b7280;padding:20px;text-align:center;">No ${targetStatus.toLowerCase()} issues found.</div>`;
       return;
     }
 
-    listEl.innerHTML = issues
-      .map(
-        (i) => `
-          <div class="issue-card">
-            <strong>${escapeHtml(i.Title)}</strong>
-            <div style="font-size:13px">${escapeHtml(i.Description)}</div>
-            <div style="font-size:12px;color:#6b7280">
-              Facility: ${escapeHtml(i.Facility || "-")} |
-              Priority: ${escapeHtml(i.Priority)} |
-              Status: ${escapeHtml(i.Status)}
-            </div>
-            ${
-              mode === "view" && !["resolved", "closed", "solved"].includes(String(i.Status || "").toLowerCase())
-                ? `
-                  <div class="issue-actions">
-                    <textarea class="issue-comment" placeholder="Add comment..."></textarea>
-                    <button class="btn btn-sm btn-primary" data-action="resolve" data-id="${escapeHtml(i.id)}">Mark Solved</button>
-                  </div>
-                `
-                : ""
-            }
-          </div>
-        `
-      )
-      .join("");
+    listEl.innerHTML = issues.map(i => {
+      const prioClass = i.Priority === 'High' ? 'prio-high' : i.Priority === 'Low' ? 'prio-low' : 'prio-medium';
+      
+      // Sadece 'view' modundaysak buton gösterilecek
+      const showAction = mode === 'view' && i.Status === 'Waiting';
 
-    listEl.querySelectorAll('button[data-action="resolve"]').forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const card = btn.closest(".issue-card");
-        const commentEl = card ? card.querySelector(".issue-comment") : null;
-        const comment = commentEl ? commentEl.value : "";
-        markResolved(btn.dataset.id, comment);
+      return `
+        <div class="issue-card ${i.Status === 'Solved' ? 'issue-card--solved' : ''}">
+          <div class="issue-card-header">
+            <strong>${escapeHtml(i.Title)}</strong>
+            <span class="issue-prio ${prioClass}">${escapeHtml(i.Priority)}</span>
+          </div>
+          <div class="issue-card-desc">${escapeHtml(i.Description)}</div>
+          <div class="issue-card-meta">
+            <span>Facility: ${escapeHtml(i.Facility || '-')}</span>
+            <span class="issue-status status-${i.Status?.toLowerCase()}">${escapeHtml(i.Status)}</span>
+          </div>
+          ${showAction ? `
+            <div class="issue-actions">
+              <button class="btn btn-sm btn-primary" data-action="resolve" data-id="${escapeHtml(i.id)}">Mark Solved</button>
+            </div>` : ''}
+        </div>`;
+    }).join("");
+
+    listEl.querySelectorAll('button[data-action="resolve"]').forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        markResolved(btn.dataset.id);
       });
     });
   }
 
   function escapeHtml(str) {
-    return String(str ?? "")
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#039;");
+    return String(str ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
   }
 }
