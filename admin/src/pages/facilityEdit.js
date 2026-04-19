@@ -3,6 +3,15 @@ import { auth, db } from "../app/config.js";
 import {
   collection, getDocs, doc, updateDoc
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+import { buildFacilityUpdate } from "../services/adminServices.js";
+function escapeAttr(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
 
 /**
  * Edit Facility Info — Admin Page
@@ -257,19 +266,18 @@ export async function initFacilityEdit(root) {
     saveBtn.textContent = 'Saving...';
     saveMsg.textContent = '';
 
-    // Read all form values
-    const updates = {
-      Name:         root.querySelector('#facName').value.trim(),
-      Adress:       root.querySelector('#facAddress').value.trim(),
-      Capacity:     parseInt(root.querySelector('#facCapacity').value, 10) || 0,
+    const updates = buildFacilityUpdate({
+      Name:         root.querySelector('#facName').value,
+      Adress:      root.querySelector('#facAddress').value,
+      Capacity:     root.querySelector('#facCapacity').value,
       Status:       root.querySelector('#facStatus').value,
-      contactName:  root.querySelector('#facContact').value.trim(),
-      phone:        root.querySelector('#facPhone').value.trim(),
+      contactName:  root.querySelector('#facContact').value,
+      phone:        root.querySelector('#facPhone').value,
       weekdayStart: root.querySelector('#facWdStart').value,
       weekdayEnd:   root.querySelector('#facWdEnd').value,
       weekendStart: root.querySelector('#facWeStart').value,
       weekendEnd:   root.querySelector('#facWeEnd').value
-    };
+    });
 
     try {
       await updateDoc(doc(db, 'Facility', facilityDocId), updates);
@@ -294,14 +302,4 @@ export async function initFacilityEdit(root) {
       saveMsg.style.color = '#991b1b';
     }
   });
-}
-
-/* ── util: escape for HTML attribute insertion ───── */
-function escapeAttr(value) {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
 }

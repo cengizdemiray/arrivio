@@ -8,6 +8,11 @@ import {
   updateDoc,
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+import {
+  normalizeRequest,
+  filterPendingRequests,
+  buildApprovalDocument
+} from "../services/adminServices.js";
 
 export function initPendingApplications(root) {
   if (root._unsubPendingApplications) {
@@ -64,22 +69,6 @@ export function initPendingApplications(root) {
       .replaceAll("'", "&#039;");
   }
 
-  function pickField(data, keys, fallback = "") {
-    for (const k of keys) {
-      if (data && data[k] != null && String(data[k]).trim() !== "") return data[k];
-    }
-    return fallback;
-  }
-
-  function normalizeRequest(docId, data) {
-    const name = pickField(data, ["name", "Name"], "—");
-    const surname = pickField(data, ["surname", "Surname"], "");
-    const email = pickField(data, ["email", "Email", "E-mail"], "—");
-    const status = pickField(data, ["status", "Status"], "pending");
-    const createdAt = data?.createdAt ?? data?.CreatedAt ?? null;
-    return { id: docId, name, surname, email, status, createdAt, raw: data || {} };
-  }
-
   function getTimestampMs(val) {
     if (!val) return 0;
     if (typeof val.toDate === "function") return val.toDate().getTime();
@@ -101,19 +90,9 @@ export function initPendingApplications(root) {
   }
 
   function render() {
-    const q = (searchEl.value || "").trim().toLowerCase();
     tbody.innerHTML = "";
 
-    const filtered = requests
-      .filter(r => (r.status || "").toLowerCase() === "pending")
-      .filter(r => {
-        if (!q) return true;
-        return (
-          String(`${r.name} ${r.surname}` || "").toLowerCase().includes(q) ||
-          String(r.email || "").toLowerCase().includes(q) ||
-          String(r.id || "").toLowerCase().includes(q)
-        );
-      })
+    const filtered = filterPendingRequests(requests, searchEl.value)
       .sort((a, b) => getTimestampMs(b.createdAt) - getTimestampMs(a.createdAt));
 
     pendingCount.textContent = `Showing ${filtered.length} requests`;
@@ -151,12 +130,7 @@ export function initPendingApplications(root) {
       await setDoc(
         operatorRef,
         {
-          Name: req.name || "",
-          Surname: req.surname || "",
-          Email: req.email || "",
-          Role: "operator",
-          Status: "Active",
-          RequestedAt: req.createdAt || null,
+          ...buildApprovalDocument(req),
           ApprovedAt: serverTimestamp()
         },
         { merge: true }

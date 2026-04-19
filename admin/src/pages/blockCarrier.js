@@ -7,43 +7,46 @@ import {
   updateDoc,
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+import {
+  normalizeCarrier,
+  computeBlockUntilDate,
+  buildBlockPayload,
+  buildUnblockPayload,
+  filterCarriers,
+  isBlockExpired,
+  getExpiredCarriers
+} from "../services/adminServices.js";
 
 export function initBlockCarrier(root) {
+  if (root._unsubCarrier) {
+    try { root._unsubCarrier(); } catch (_) {}
+    root._unsubCarrier = null;
+  }
+
   root.innerHTML = `
-    <div class="carrier-layout">
-      <div class="carrier-list">
-        <div class="list-header">
-          <input id="carrierSearch" placeholder="Search by carrier name, plate, or ID..." />
+    <div class="bc-root">
+      <div class="bc-toolbar">
+        <div class="bc-toolbar-left">
+          <input id="carrierSearch" class="bc-search" placeholder="Search by name, plate or ID..." />
         </div>
-
-        <div class="table-wrap">
-          <table class="carrier-table">
-            <thead>
-              <tr>
-                <th>Carrier</th>
-                <th>Plate</th>
-                <th>Status</th>
-                <th>Reason</th>
-                <th>Until</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody id="carrierTbody"></tbody>
-          </table>
+        <div class="bc-toolbar-right">
+          <span class="bc-count" id="carrierCount">0 carriers</span>
         </div>
-
-        <div id="listMsg" style="margin-top:10px;font-size:13px;"></div>
       </div>
 
-      <aside class="control-panel">
-        <div class="panel-inner">
-          <h3>Block Carrier</h3>
+      <div id="carrierGrid" class="bc-grid"></div>
 
-          <div class="form-row">
-            <label>Selected Carrier</label>
-            <div id="selectedCarrierName">—</div>
-          </div>
+      <div id="bcMsg" style="margin-top:10px;font-size:13px;"></div>
+    </div>
 
+    <!-- Block Modal -->
+    <div id="blockModal" class="bc-modal-overlay" style="display:none;">
+      <div class="bc-modal">
+        <div class="bc-modal-header">
+          <h3 id="modalTitle">Block Carrier</h3>
+          <button id="modalClose" class="bc-modal-close">&times;</button>
+        </div>
+        <div class="bc-modal-body">
           <div class="form-row">
             <label>Reason</label>
             <select id="blockReason">
@@ -52,12 +55,10 @@ export function initBlockCarrier(root) {
               <option>Other</option>
             </select>
           </div>
-
           <div class="form-row">
-            <label>Optional Message to Carrier</label>
-            <textarea id="blockMessage" placeholder="Explain the reason..."></textarea>
+            <label>Message to Carrier (optional)</label>
+            <textarea id="blockMessage" placeholder="Explain the reason..." rows="3"></textarea>
           </div>
-
           <div class="form-row">
             <label>Duration</label>
             <select id="blockDuration">
@@ -67,197 +68,45 @@ export function initBlockCarrier(root) {
               <option value="0">Indefinite</option>
             </select>
           </div>
-
-          <div style="margin-top:12px;display:flex;gap:8px;">
-            <button id="panelBlock" class="btn btn-primary">Block Carrier</button>
-            <button id="panelUnblock" class="btn">Unblock</button>
-          </div>
-
-          <div id="panelMsg" style="margin-top:10px;font-size:13px;"></div>
         </div>
-      </aside>
+        <div class="bc-modal-footer">
+          <button id="modalCancel" class="btn">Cancel</button>
+          <button id="modalConfirm" class="btn btn-primary">Block</button>
+        </div>
+        <div id="modalMsg" style="margin-top:8px;font-size:13px;"></div>
+      </div>
     </div>
   `;
 
-  const tbody = root.querySelector("#carrierTbody");
+  const grid = root.querySelector("#carrierGrid");
   const search = root.querySelector("#carrierSearch");
-  const selectedName = root.querySelector("#selectedCarrierName");
+  const countEl = root.querySelector("#carrierCount");
+  const bcMsg = root.querySelector("#bcMsg");
+
+  // modal elements
+  const modal = root.querySelector("#blockModal");
+  const modalTitle = root.querySelector("#modalTitle");
+  const modalClose = root.querySelector("#modalClose");
+  const modalCancel = root.querySelector("#modalCancel");
+  const modalConfirm = root.querySelector("#modalConfirm");
+  const modalMsg = root.querySelector("#modalMsg");
   const reasonEl = root.querySelector("#blockReason");
   const messageEl = root.querySelector("#blockMessage");
   const durationEl = root.querySelector("#blockDuration");
-  const panelBlock = root.querySelector("#panelBlock");
-  const panelUnblock = root.querySelector("#panelUnblock");
-  const listMsg = root.querySelector("#listMsg");
-  const panelMsg = root.querySelector("#panelMsg");
 
-  const setListMsg = (t = "", type = "info") => {
-    listMsg.textContent = t;
-    listMsg.style.color = type === "error" ? "#b42318" : type === "success" ? "#027a48" : "#344054";
-  };
-  const setPanelMsg = (t = "", type = "info") => {
-    panelMsg.textContent = t;
-    panelMsg.style.color = type === "error" ? "#b42318" : type === "success" ? "#027a48" : "#344054";
-  };
-
-  let carriers = [];           // { id, name, plate, carrierId, status, reason, until }
+  let carriers = [];
   let selectedDocId = null;
+  let autoUnblockDone = false;
 
-  function formatDateISO(d) {
-    const Y = d.getFullYear();
-    const M = String(d.getMonth() + 1).padStart(2, "0");
-    const D = String(d.getDate()).padStart(2, "0");
-    return `${Y}-${M}-${D}`;
-  }
+  const setBcMsg = (t = "", type = "info") => {
+    bcMsg.textContent = t;
+    bcMsg.style.color = type === "error" ? "#b42318" : type === "success" ? "#027a48" : "#344054";
+  };
 
-  function computeUntilISO(durationDays) {
-    const dur = parseInt(durationDays, 10);
-    if (!dur || dur <= 0) return ""; // Indefinite
-    const d = new Date();
-    d.setDate(d.getDate() + dur);
-    return formatDateISO(d);
-  }
-
-  function normalizeCarrier(docId, data) {
-    const name = String(data?.Name ?? data?.name ?? "—");
-    const plate = String(data?.Vehicle_Plate ?? data?.plate ?? "—");  
-    const carrierId = String(data?.Carrier_ID ?? data?.id ?? docId);
-
-    // Block alanları
-    const status = String(data?.Status ?? "Active");   // "Active" / "Blocked"
-    const reason = String(data?.BlockReason ?? data?.reason ?? "");
-    const until = String(data?.BlockUntil ?? data?.until ?? "");
-
-    return { id: docId, name, plate, carrierId, status, reason, until };
-  }
-
-  function render() {
-    const q = (search.value || "").trim().toLowerCase();
-    tbody.innerHTML = "";
-
-    const filtered = carriers.filter(c => {
-      if (!q) return true;
-      return (
-        String(c.name ?? "").toLowerCase().includes(q) ||
-        String(c.plate ?? "").toLowerCase().includes(q) ||       
-        String(c.carrierId ?? "").toLowerCase().includes(q)
-      );
-    });
-
-    filtered.forEach(c => {
-      const tr = document.createElement("tr");
-      const badgeClass = c.status === "Blocked" ? "badge-blocked" : "badge-active";
-      tr.innerHTML = `
-        <td>${escapeHtml(c.name)} <div style="font-size:12px;color:#6b7280">${escapeHtml(c.carrierId)}</div></td>
-        <td>${escapeHtml(c.plate)}</td>
-        <td><span class="badge ${badgeClass}">${escapeHtml(c.status)}</span></td>
-        <td>${escapeHtml(c.reason || "-")}</td>
-        <td>${escapeHtml(c.until || "-")}</td>
-        <td><button data-id="${c.id}" class="btn btn-sm btn-select">Select</button></td>
-      `;
-      tbody.appendChild(tr);
-    });
-
-    root.querySelectorAll(".btn-select").forEach(b =>
-      b.addEventListener("click", e => selectCarrier(e.target.dataset.id))
-    );
-
-    if (filtered.length === 0) setListMsg("No carriers found.", "info");
-    else setListMsg("", "info");
-  }
-
-  function selectCarrier(docId) {
-    selectedDocId = docId;
-    const c = carriers.find(x => x.id === docId);
-    if (!c) return;
-
-    selectedName.textContent = `${c.name} (${c.plate})`;
-    reasonEl.value = c.reason || "Safety Violation";
-    messageEl.value = "";
-    durationEl.value = "7";
-    setPanelMsg("", "info");
-  }
-
-  async function blockSelected() {
-    setPanelMsg("", "info");
-
-    if (!selectedDocId) return setPanelMsg("Select a carrier from the list first.", "error");
-    const user = auth.currentUser;
-    if (!user) return setPanelMsg("Not logged in. Please login again.", "error");
-
-    const reason = reasonEl.value;
-    const message = (messageEl.value || "").trim();
-    const until = computeUntilISO(durationEl.value);
-
-    try {
-      setPanelMsg("Blocking...", "info");
-      const ref = doc(db, "Carrier", selectedDocId);
-
-      await updateDoc(ref, {
-        Status: "Blocked",
-        BlockReason: reason,
-        BlockMessage: message,
-        BlockUntil: until,
-        UpdatedAt: serverTimestamp(),
-        UpdatedByUid: user.uid
-      });
-
-      setPanelMsg("Carrier blocked ✅", "success");
-    } catch (err) {
-      console.error("blockSelected failed:", err);
-      setPanelMsg(err?.message || "Failed to block.", "error");
-    }
-  }
-
-  async function unblockSelected() {
-    setPanelMsg("", "info");
-
-    if (!selectedDocId) return setPanelMsg("Select a carrier first.", "error");
-    const user = auth.currentUser;
-    if (!user) return setPanelMsg("Not logged in. Please login again.", "error");
-
-    try {
-      setPanelMsg("Unblocking...", "info");
-      const ref = doc(db, "Carrier", selectedDocId);
-
-      await updateDoc(ref, {
-        Status: "Active",
-        BlockReason: "",
-        BlockMessage: "",
-        BlockUntil: "",
-        UpdatedAt: serverTimestamp(),
-        UpdatedByUid: user.uid
-      });
-
-      setPanelMsg("Carrier unblocked ✅", "success");
-    } catch (err) {
-      console.error("unblockSelected failed:", err);
-      setPanelMsg(err?.message || "Failed to unblock.", "error");
-    }
-  }
-
-  panelBlock.addEventListener("click", blockSelected);
-  panelUnblock.addEventListener("click", unblockSelected);
-  search.addEventListener("input", render);
-
-  const qRef = query(collection(db, "Carrier"));
-  const unsub = onSnapshot(
-    qRef,
-    snap => {
-      carriers = snap.docs.map(d => normalizeCarrier(d.id, d.data()));
-      render();
-
-      if (selectedDocId) {
-        const c = carriers.find(x => x.id === selectedDocId);
-        if (c) selectedName.textContent = `${c.name} (${c.plate})`;
-      }
-    },
-    err => {
-      console.error("Carrier onSnapshot error:", err);
-      setListMsg(err?.message || "Failed to load carriers.", "error");
-    }
-  );
-
-  root._unsubCarrier = unsub;
+  const setModalMsg = (t = "", type = "info") => {
+    modalMsg.textContent = t;
+    modalMsg.style.color = type === "error" ? "#b42318" : type === "success" ? "#027a48" : "#344054";
+  };
 
   function escapeHtml(str) {
     return String(str ?? "")
@@ -267,4 +116,179 @@ export function initBlockCarrier(root) {
       .replaceAll('"', "&quot;")
       .replaceAll("'", "&#039;");
   }
+
+  // ── Modal helpers ──
+  function openBlockModal(docId) {
+    selectedDocId = docId;
+    const c = carriers.find(x => x.id === docId);
+    if (!c) return;
+    modalTitle.textContent = `Block: ${c.name}`;
+    reasonEl.value = "Safety Violation";
+    messageEl.value = "";
+    durationEl.value = "7";
+    setModalMsg("");
+    modal.style.display = "flex";
+  }
+
+  function closeModal() {
+    modal.style.display = "none";
+    selectedDocId = null;
+    setModalMsg("");
+  }
+
+  modalClose.addEventListener("click", closeModal);
+  modalCancel.addEventListener("click", closeModal);
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) closeModal();
+  });
+
+  // ── Block / Unblock actions ──
+  modalConfirm.addEventListener("click", async () => {
+    if (!selectedDocId) return;
+    const user = auth.currentUser;
+    if (!user) return setModalMsg("Not logged in.", "error");
+
+    const reason = reasonEl.value;
+    const message = (messageEl.value || "").trim();
+    const until = computeBlockUntilDate(durationEl.value);
+
+    try {
+      setModalMsg("Blocking...", "info");
+      modalConfirm.disabled = true;
+      await updateDoc(doc(db, "Carrier", selectedDocId), {
+        ...buildBlockPayload(reason, message, until, user.uid),
+        UpdatedAt: serverTimestamp()
+      });
+      closeModal();
+    } catch (err) {
+      console.error("block failed:", err);
+      setModalMsg(err?.message || "Failed to block.", "error");
+    } finally {
+      modalConfirm.disabled = false;
+    }
+  });
+
+  async function unblockCarrier(docId) {
+    const user = auth.currentUser;
+    if (!user) return setBcMsg("Not logged in.", "error");
+
+    try {
+      await updateDoc(doc(db, "Carrier", docId), {
+        ...buildUnblockPayload(user.uid),
+        UpdatedAt: serverTimestamp()
+      });
+    } catch (err) {
+      console.error("unblock failed:", err);
+      setBcMsg(err?.message || "Failed to unblock.", "error");
+    }
+  }
+
+  // ── Auto-unblock expired carriers on page load ──
+  async function autoUnblockExpired() {
+    if (autoUnblockDone) return;
+    autoUnblockDone = true;
+
+    const expired = getExpiredCarriers(carriers);
+    if (!expired.length) return;
+
+    const user = auth.currentUser;
+    if (!user) return;
+
+    let count = 0;
+    for (const c of expired) {
+      try {
+        await updateDoc(doc(db, "Carrier", c.id), {
+          ...buildUnblockPayload(user.uid),
+          UpdatedAt: serverTimestamp()
+        });
+        count++;
+      } catch (err) {
+        console.error(`Auto-unblock failed for ${c.id}:`, err);
+      }
+    }
+
+    if (count > 0) {
+      setBcMsg(`${count} carrier(s) auto-unblocked (block period expired).`, "success");
+    }
+  }
+
+  // ── Render cards ──
+  function render() {
+    grid.innerHTML = "";
+    const filtered = filterCarriers(carriers, search.value);
+    countEl.textContent = `${filtered.length} carrier${filtered.length !== 1 ? "s" : ""}`;
+
+    filtered.forEach(c => {
+      const isBlocked = c.status === "Blocked";
+      const expired = isBlockExpired(c);
+      const card = document.createElement("div");
+      card.className = `bc-card ${isBlocked ? "bc-card--blocked" : "bc-card--active"}`;
+
+      card.innerHTML = `
+        <div class="bc-card-head">
+          <div>
+            <div class="bc-card-name">${escapeHtml(c.name)}</div>
+            <div class="bc-card-id">${escapeHtml(c.carrierId)}</div>
+          </div>
+          <span class="badge ${isBlocked ? "badge-blocked" : "badge-active"}">${escapeHtml(c.status)}</span>
+        </div>
+
+        <div class="bc-card-details">
+          <div class="bc-card-row">
+            <span class="bc-card-label">Plate</span>
+            <span>${escapeHtml(c.plate)}</span>
+          </div>
+          ${isBlocked ? `
+            <div class="bc-card-row">
+              <span class="bc-card-label">Reason</span>
+              <span>${escapeHtml(c.reason || "-")}</span>
+            </div>
+            <div class="bc-card-row">
+              <span class="bc-card-label">Until</span>
+              <span>${escapeHtml(c.until || "Indefinite")}${expired ? ' <span class="bc-expired-tag">EXPIRED</span>' : ""}</span>
+            </div>
+          ` : ""}
+        </div>
+
+        <div class="bc-card-actions">
+          ${isBlocked
+            ? `<button class="btn btn-sm bc-btn-unblock" data-id="${c.id}">Unblock</button>`
+            : `<button class="btn btn-sm btn-primary bc-btn-block" data-id="${c.id}">Block</button>`
+          }
+        </div>
+      `;
+
+      grid.appendChild(card);
+    });
+
+    // event delegation
+    grid.querySelectorAll(".bc-btn-block").forEach(b =>
+      b.addEventListener("click", () => openBlockModal(b.dataset.id))
+    );
+    grid.querySelectorAll(".bc-btn-unblock").forEach(b =>
+      b.addEventListener("click", () => unblockCarrier(b.dataset.id))
+    );
+
+    if (filtered.length === 0) setBcMsg("No carriers found.", "info");
+    else setBcMsg("", "info");
+  }
+
+  search.addEventListener("input", render);
+
+  // ── Realtime listener ──
+  const qRef = query(collection(db, "Carrier"));
+  const unsub = onSnapshot(
+    qRef,
+    snap => {
+      carriers = snap.docs.map(d => normalizeCarrier(d.id, d.data()));
+      render();
+      autoUnblockExpired();
+    },
+    err => {
+      console.error("Carrier onSnapshot error:", err);
+      setBcMsg(err?.message || "Failed to load carriers.", "error");
+    }
+  );
+
+  root._unsubCarrier = unsub;
 }

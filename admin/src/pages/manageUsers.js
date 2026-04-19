@@ -12,6 +12,12 @@ import {
   deleteDoc,
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+import {
+  normalizeUser,
+  filterUsers,
+  roleToCollection,
+  roleBadgeClass
+} from "../services/adminServices.js";
 
 export function initManageUsers(root) {
   // cleanup previous listeners if user navigates away and returns
@@ -108,48 +114,8 @@ export function initManageUsers(root) {
       type === "error" ? "#b42318" : type === "success" ? "#027a48" : "#344054";
   }
 
-  function pickField(data, keys, fallback = "") {
-    for (const k of keys) {
-      if (data && data[k] != null && String(data[k]).trim() !== "") return data[k];
-    }
-    return fallback;
-  }
-
-  function normalize(role, uid, data) {
-    const name = pickField(data, ["Name", "name"], "—");
-    const surname = pickField(data, ["Surname", "surname"], "");
-    const fullName = (String(name || "") + (surname ? ` ${surname}` : "")).trim() || "—";
-
-    const email = pickField(data, ["E-mail", "Email", "email"], "—");
-    return { uid, role, name: fullName, email: String(email || "—"), data: data || {} };
-  }
-
-  function applyFilters(queryStr, roleVal) {
-    const q = (queryStr || "").trim().toLowerCase();
-    const rf = roleVal || "all";
-
-    let list = allUsers;
-
-    if (rf !== "all") list = list.filter(u => u.role === rf);
-
-    if (q) {
-      list = list.filter(u => {
-        return (
-          (u.name || "").toLowerCase().includes(q) ||
-          (u.email || "").toLowerCase().includes(q) ||
-          (u.uid || "").toLowerCase().includes(q)
-        );
-      });
-    }
-
-    // stable sort
-    list = list.slice().sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-    return list;
-  }
-
   function roleBadge(role) {
-    const cls = role === "admin" ? "badge-admin" : role === "operator" ? "badge-operator" : "badge-carrier";
-    return `<span class="badge ${cls}">${escapeHtml(role)}</span>`;
+    return `<span class="badge ${roleBadgeClass(role)}">${escapeHtml(role)}</span>`;
   }
 
   function render(reset = false) {
@@ -160,7 +126,7 @@ export function initManageUsers(root) {
       showDetails(null);
     }
 
-    const filtered = applyFilters(lastQuery, roleFilter.value);
+    const filtered = filterUsers(allUsers, lastQuery, roleFilter.value);
     const page = filtered.slice(offset, offset + limit);
 
     resultsCount.textContent = `Showing ${Math.min(offset + page.length, filtered.length)} of ${filtered.length} results`;
@@ -232,12 +198,6 @@ export function initManageUsers(root) {
     showDetails(u);
   }
 
-  function roleToCollection(role) {
-    if (role === "admin") return "Admin";
-    if (role === "operator") return "Operator";
-    return "Carrier";
-  }
-
   async function changeUserRole(uid, oldRole, newRole) {
     if (!uid) throw new Error("No user selected");
     if (oldRole === newRole) return;
@@ -281,7 +241,7 @@ export function initManageUsers(root) {
       if (idx !== -1) fromList.splice(idx, 1);
 
       // add to new bucket
-      const newNorm = normalize(newRole, uid, { ...(data || {}), Role: newRole });
+      const newNorm = normalizeUser(newRole, uid, { ...(data || {}), Role: newRole });
       bucket[newRole] = bucket[newRole] || [];
       bucket[newRole].push(newNorm);
 
@@ -339,21 +299,21 @@ export function initManageUsers(root) {
 
   unsubs.push(
     onSnapshot(collection(db, "Admin"), (snap) => {
-      bucket.admin = snap.docs.map(d => normalize("admin", d.id, d.data()));
+      bucket.admin = snap.docs.map(d => normalizeUser("admin", d.id, d.data()));
       rebuildAllUsers();
     })
   );
 
   unsubs.push(
     onSnapshot(collection(db, "Carrier"), (snap) => {
-      bucket.carrier = snap.docs.map(d => normalize("carrier", d.id, d.data()));
+      bucket.carrier = snap.docs.map(d => normalizeUser("carrier", d.id, d.data()));
       rebuildAllUsers();
     })
   );
 
   unsubs.push(
     onSnapshot(collection(db, "Operator"), (snap) => {
-      bucket.operator = snap.docs.map(d => normalize("operator", d.id, d.data()));
+      bucket.operator = snap.docs.map(d => normalizeUser("operator", d.id, d.data()));
       rebuildAllUsers();
     })
   );

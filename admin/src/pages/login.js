@@ -2,7 +2,7 @@
 import { auth, db } from "../app/config.js";
 import { signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
-
+import { validateAdminLogin, isAdminAuthorized } from "../services/adminServices.js";
 const form = document.getElementById("loginForm");
 const email = document.getElementById("email");
 const password = document.getElementById("password");
@@ -26,18 +26,20 @@ function setHint(el, hintEl, show) {
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
 
-  const emailVal = email.value.trim();
-  const pwdVal = password.value.trim();
-
-  setHint(email, emailHint, emailVal.length === 0);
-  setHint(password, pwdHint, pwdVal.length === 0);
-  if (!emailVal || !pwdVal) return;
+  const result = validateAdminLogin(email.value, password.value);
+  setHint(email, emailHint, !email.value.trim());
+  setHint(password, pwdHint, !password.value.trim());
+  if (!result.valid) {
+    errorBox.textContent = result.error;
+    errorBox.hidden = false;
+    return;
+  }
 
   errorBox.hidden = true;
 
   try {
     // Auth login
-    const cred = await signInWithEmailAndPassword(auth, emailVal, pwdVal);
+    const cred = await signInWithEmailAndPassword(auth, result.email, result.password);
 
     // Admin yetkisi kontrolü 
     const uid = cred.user.uid;
@@ -45,8 +47,7 @@ form.addEventListener("submit", async (e) => {
     const adminRef = doc(db, "Admin", uid);
     const adminSnap = await getDoc(adminRef);
 
-    if (!adminSnap.exists()) {
-      // kullanıcı auth oldu ama Admin koleksiyonunda yoksa admin paneline sokma
+    if (!isAdminAuthorized(adminSnap.exists())) {
       errorBox.textContent = "You are not authorized as admin.";
       errorBox.hidden = false;
       return;

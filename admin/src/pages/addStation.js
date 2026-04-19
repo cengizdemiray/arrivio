@@ -5,6 +5,10 @@ import {
   addDoc,
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+import {
+  validateStationInput,
+  buildStationDocument
+} from "../services/adminServices.js";
 
 export function initAddStation(root) {
   root.innerHTML = `
@@ -75,30 +79,27 @@ export function initAddStation(root) {
   const step1 = root.querySelector('.step[data-step="1"]');
   const step2 = root.querySelector('.step[data-step="2"]');
 
-  const parse = v => parseFloat(String(v).replace(",", "."));
-
   root.querySelector("#basicsContinue").onclick = () => {
-    const lon = parse(root.querySelector("#longitude").value);
-    const lat = parse(root.querySelector("#latitude").value);
-    const stationId = root.querySelector("#stationId").value.trim();
+    const result = validateStationInput(
+      root.querySelector("#longitude").value,
+      root.querySelector("#latitude").value,
+      root.querySelector("#stationId").value,
+      root.querySelector("#status").value,
+      root.querySelector("#type").value
+    );
 
-    if (Number.isNaN(lon) || Number.isNaN(lat)) {
-      msg.textContent = "Invalid coordinates";
-      msg.style.color = "red";
-      return;
-    }
-    if (!stationId) {
-      msg.textContent = "Station ID is required";
+    if (!result.valid) {
+      msg.textContent = result.error;
       msg.style.color = "red";
       return;
     }
 
     basics = {
-      longitude: lon,
-      latitude: lat,
-      status: root.querySelector("#status").value,
-      type: root.querySelector("#type").value,
-      stationId
+      longitude: result.longitude,
+      latitude: result.latitude,
+      status: result.status,
+      type: result.type,
+      stationId: result.stationId
     };
 
     summary.innerHTML = `
@@ -141,13 +142,14 @@ export function initAddStation(root) {
       }
 
       try {
-      const station = {
-        ...basics,
-        StationId: basics.stationId,
-        contactName: wizardContent.querySelector("#contactName").value,
-        phone: wizardContent.querySelector("#phone").value,
-          createdAt: serverTimestamp(),
-          createdBy: auth.currentUser.uid
+        const station = {
+          ...buildStationDocument({
+            ...basics,
+            contactName: wizardContent.querySelector("#contactName").value,
+            phone: wizardContent.querySelector("#phone").value,
+            createdByUid: auth.currentUser.uid
+          }),
+          createdAt: serverTimestamp()
         };
 
         await addDoc(collection(db, "Station"), station);
