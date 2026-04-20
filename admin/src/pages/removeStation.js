@@ -1,4 +1,4 @@
-// js/pages/removeStation.js (Firestore version)
+// js/pages/removeStation.js
 import { auth, db } from "../app/config.js";
 import {
   collection,
@@ -6,8 +6,11 @@ import {
   deleteDoc,
   doc,
   query,
-  orderBy,
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+import {
+  filterStations,
+  validateStationRemoval
+} from "../services/adminServices.js";
 
 export function initRemoveStation(root) {
   root.innerHTML = `
@@ -56,8 +59,8 @@ export function initRemoveStation(root) {
   const removeBtn = root.querySelector("#removeBtn");
   const msgEl = root.querySelector("#msg");
 
-  const selected = new Set(); // selected docIds
-  let stationsCache = [];     // [{id, ...data}]
+  const selected = new Set();
+  let stationsCache = [];
 
   function setMsg(text, type = "info") {
     msgEl.textContent = text || "";
@@ -67,16 +70,8 @@ export function initRemoveStation(root) {
   }
 
   function render() {
-    const q = search.value.trim().toLowerCase();
+    const filtered = filterStations(stationsCache, search.value);
     tbody.innerHTML = "";
-
-      const filtered = stationsCache.filter(s => {
-        if (!q) return true;
-        const type = String(s.type || "").toLowerCase();
-        const status = String(s.status || "").toLowerCase();
-        const stationId = String(s.stationId || s.StationId || "").toLowerCase();
-        return type.includes(q) || status.includes(q) || s.id.toLowerCase().includes(q) || stationId.includes(q);
-      });
 
     filtered.forEach(s => {
       const stationId = s.stationId || s.StationId || "-";
@@ -93,7 +88,6 @@ export function initRemoveStation(root) {
       tbody.appendChild(tr);
     });
 
-    // hook row checkboxes
     root.querySelectorAll(".row-select").forEach(cb =>
       cb.addEventListener("change", (e) => {
         const id = e.target.dataset.id;
@@ -126,24 +120,23 @@ export function initRemoveStation(root) {
   search.addEventListener("input", render);
 
   removeBtn.addEventListener("click", async () => {
-    const ids = Array.from(selected);
-    if (ids.length === 0) {
-      alert("Select at least one station to remove.");
+    const result = validateStationRemoval(Array.from(selected));
+    if (!result.valid) {
+      alert(result.error);
       return;
     }
 
-    // auth guard (opsiyonel)
     if (!auth.currentUser) {
       setMsg("Not logged in. Please login again.", "error");
       return;
     }
 
-    const ok = confirm(`${ids.length} station will be deleted from Firestore. Continue?`);
+    const ok = confirm(`${result.ids.length} station will be deleted from Firestore. Continue?`);
     if (!ok) return;
 
     try {
       setMsg("Deleting...", "info");
-      for (const id of ids) {
+      for (const id of result.ids) {
         await deleteDoc(doc(db, "Station", id));
         selected.delete(id);
       }
@@ -154,7 +147,7 @@ export function initRemoveStation(root) {
     }
   });
 
-  // 🔥 Realtime listen
+  // Realtime listen
   const qStations = query(collection(db, "Station"));
   const unsub = onSnapshot(
     qStations,
@@ -167,5 +160,4 @@ export function initRemoveStation(root) {
       setMsg(err?.message || "Failed to load stations.", "error");
     }
   );
-
 }

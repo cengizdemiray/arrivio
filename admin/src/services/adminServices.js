@@ -346,7 +346,7 @@ export function buildIssueResolvePayload() {
 }
 
 /* ═══════════════════════════════════════════════
-   STATISTICS / REPORTS
+   REMOVE STATION
    ═══════════════════════════════════════════════ */
 
 /**
@@ -361,4 +361,15 @@ export function filterStations(stations, query = '') {
     const stationId = String(s.stationId || s.StationId || '').toLowerCase();
     return type.includes(q) || status.includes(q) || s.id.toLowerCase().includes(q) || stationId.includes(q);
   });
+}
+
+/**
+ * Validate that at least one station is selected for removal.
+ */
+export function validateStationRemoval(selectedIds) {
+  const ids = Array.isArray(selectedIds) ? selectedIds : [];
+  if (ids.length === 0) {
+    return { valid: false, error: 'Select at least one station to remove.' };
+  }
+  return { valid: true, ids };
 }

@@ -38,7 +38,8 @@ import {
   normalizeIssue,
   searchIssues,
   buildIssueResolvePayload,
-  filterStations
+  filterStations,
+  validateStationRemoval
 } from '../../admin/src/services/adminServices.js';
 
 
@@ -568,6 +569,93 @@ describe('TC-AD-06: Updating Facility Information', () => {
     assert.equal(update.Status, 'Active');
   });
 
+});
+
+
+/* ═══════════════════════════════════════════════
+   TC-AD-07: Removing Station
+   "Validate that admin can search and remove stations"
+   ═══════════════════════════════════════════════ */
+describe('TC-AD-07: Removing Station', () => {
+
+  const stations = [
+    { id: 'doc-1', stationId: 'ST-001', type: 'Load', status: 'active' },
+    { id: 'doc-2', stationId: 'ST-002', type: 'Unload', status: 'maintenance' },
+    { id: 'doc-3', StationId: 'ST-003', type: 'Load', status: 'inactive' }
+  ];
+
+  describe('filterStations', () => {
+    it('returns all stations when query is empty', () => {
+      assert.equal(filterStations(stations, '').length, 3);
+      assert.equal(filterStations(stations).length, 3);
+    });
+
+    it('filters by status', () => {
+      const result = filterStations(stations, 'maintenance');
+      assert.equal(result.length, 1);
+      assert.equal(result[0].id, 'doc-2');
+    });
+
+    it('filters by stationId', () => {
+      const result = filterStations(stations, 'ST-001');
+      assert.equal(result.length, 1);
+      assert.equal(result[0].id, 'doc-1');
+    });
+
+    it('filters by StationId (alternative casing)', () => {
+      const result = filterStations(stations, 'ST-003');
+      assert.equal(result.length, 1);
+      assert.equal(result[0].id, 'doc-3');
+    });
+
+    it('filters by doc id', () => {
+      const result = filterStations(stations, 'doc-2');
+      assert.equal(result.length, 1);
+    });
+
+    it('is case-insensitive', () => {
+      assert.equal(filterStations(stations, 'MAINTENANCE').length, 1);
+      assert.equal(filterStations(stations, 'INACTIVE').length, 1);
+    });
+
+    it('returns empty for no matches', () => {
+      assert.equal(filterStations(stations, 'xyz').length, 0);
+    });
+
+    it('handles empty array', () => {
+      assert.equal(filterStations([], 'Load').length, 0);
+    });
+  });
+
+  describe('validateStationRemoval', () => {
+    it('rejects empty selection', () => {
+      const r = validateStationRemoval([]);
+      assert.equal(r.valid, false);
+      assert.ok(r.error);
+    });
+
+    it('rejects non-array input', () => {
+      const r = validateStationRemoval(null);
+      assert.equal(r.valid, false);
+    });
+
+    it('rejects undefined input', () => {
+      const r = validateStationRemoval(undefined);
+      assert.equal(r.valid, false);
+    });
+
+    it('accepts single selection', () => {
+      const r = validateStationRemoval(['doc-1']);
+      assert.equal(r.valid, true);
+      assert.deepEqual(r.ids, ['doc-1']);
+    });
+
+    it('accepts multiple selections', () => {
+      const r = validateStationRemoval(['doc-1', 'doc-2', 'doc-3']);
+      assert.equal(r.valid, true);
+      assert.equal(r.ids.length, 3);
+    });
+  });
 });
 
 
