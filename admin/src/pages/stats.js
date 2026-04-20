@@ -53,7 +53,6 @@ function renderStatsHTML(stations) {
             </div>
 
             <div class="stats-v2-meta">
-              <span><strong>Type</strong> ${station.type || "-"}</span>
               <span><strong>Contact</strong> ${station.contactName || "-"}</span>
               <span><strong>Phone</strong> ${station.phone || "-"}</span>
             </div>

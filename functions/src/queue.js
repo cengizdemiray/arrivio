@@ -1,3 +1,4 @@
+const cors = require('cors')({ origin: true });
 const { onRequest } = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
 if (!admin.apps.length) {

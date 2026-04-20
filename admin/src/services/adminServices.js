@@ -244,7 +244,7 @@ export function parseCoordinate(value) {
 /**
  * Validate add-station form inputs.
  */
-export function validateStationInput(longitude, latitude, stationId, status, type) {
+export function validateStationInput(longitude, latitude, stationId, status) {
   const lon = parseCoordinate(longitude);
   const lat = parseCoordinate(latitude);
 
@@ -257,21 +257,17 @@ export function validateStationInput(longitude, latitude, stationId, status, typ
   if (!status || !String(status).trim()) {
     return { valid: false, error: 'Status is required' };
   }
-  if (!type || !String(type).trim()) {
-    return { valid: false, error: 'Type is required' };
-  }
-  return { valid: true, longitude: lon, latitude: lat, stationId: String(stationId).trim(), status: String(status).trim(), type: String(type).trim() };
+  return { valid: true, longitude: lon, latitude: lat, stationId: String(stationId).trim(), status: String(status).trim()};
 }
 
 /**
  * Build the station document for Firestore.
  */
-export function buildStationDocument({ longitude, latitude, status, type, stationId, contactName, phone, createdByUid }) {
+export function buildStationDocument({ longitude, latitude, status, stationId, contactName, phone, createdByUid }) {
   return {
     longitude,
     latitude,
     status,
-    type,
     stationId,
     StationId: stationId,
     contactName: contactName || '',
@@ -356,10 +352,9 @@ export function filterStations(stations, query = '') {
   const q = (query || '').trim().toLowerCase();
   if (!q) return stations;
   return stations.filter(s => {
-    const type = String(s.type || '').toLowerCase();
     const status = String(s.status || '').toLowerCase();
     const stationId = String(s.stationId || s.StationId || '').toLowerCase();
-    return type.includes(q) || status.includes(q) || s.id.toLowerCase().includes(q) || stationId.includes(q);
+    return status.includes(q) || s.id.toLowerCase().includes(q) || stationId.includes(q);
   });
 }
 

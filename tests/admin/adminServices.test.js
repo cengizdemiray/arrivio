@@ -449,48 +449,41 @@ describe('TC-AD-05: Adding/Removing Stations', () => {
 
   describe('validateStationInput', () => {
     it('accepts valid inputs', () => {
-      const r = validateStationInput('32.85', '39.92', 'ST-NEW', 'active', 'Load');
+      const r = validateStationInput('32.85', '39.92', 'ST-NEW', 'active');
       assert.equal(r.valid, true);
       assert.equal(r.longitude, 32.85);
       assert.equal(r.latitude, 39.92);
       assert.equal(r.stationId, 'ST-NEW');
       assert.equal(r.status, 'active');
-      assert.equal(r.type, 'Load');
     });
 
     it('rejects invalid longitude', () => {
-      const r = validateStationInput('abc', '39.92', 'ST-1', 'active', 'Load');
+      const r = validateStationInput('abc', '39.92', 'ST-1', 'active');
       assert.equal(r.valid, false);
       assert.ok(r.error.includes('coordinates'));
     });
 
     it('rejects invalid latitude', () => {
-      const r = validateStationInput('32.85', 'xyz', 'ST-1', 'active', 'Load');
+      const r = validateStationInput('32.85', 'xyz', 'ST-1', 'active');
       assert.equal(r.valid, false);
     });
 
     it('rejects empty station ID', () => {
-      const r = validateStationInput('32.85', '39.92', '', 'active', 'Load');
+      const r = validateStationInput('32.85', '39.92', '', 'active');
       assert.equal(r.valid, false);
       assert.ok(r.error.includes('Station ID'));
     });
 
     it('handles comma decimal separator', () => {
-      const r = validateStationInput('32,85', '39,92', 'ST-1', 'active', 'Load');
+      const r = validateStationInput('32,85', '39,92', 'ST-1', 'active');
       assert.equal(r.valid, true);
       assert.equal(r.longitude, 32.85);
     });
 
     it('rejects empty status', () => {
-      const r = validateStationInput('32.85', '39.92', 'ST-1', '', 'Load');
+      const r = validateStationInput('32.85', '39.92', 'ST-1', '');
       assert.equal(r.valid, false);
       assert.ok(r.error.includes('Status'));
-    });
-
-    it('rejects empty type', () => {
-      const r = validateStationInput('32.85', '39.92', 'ST-1', 'active', '');
-      assert.equal(r.valid, false);
-      assert.ok(r.error.includes('Type'));
     });
   });
 
@@ -500,7 +493,6 @@ describe('TC-AD-05: Adding/Removing Stations', () => {
         longitude: 32.85,
         latitude: 39.92,
         status: 'active',
-        type: 'Load',
         stationId: 'ST-5',
         contactName: 'Manager',
         phone: '555-0000',
@@ -510,12 +502,11 @@ describe('TC-AD-05: Adding/Removing Stations', () => {
       assert.equal(doc.latitude, 39.92);
       assert.equal(doc.stationId, 'ST-5');
       assert.equal(doc.StationId, 'ST-5');
-      assert.equal(doc.type, 'Load');
       assert.equal(doc.createdBy, 'admin-1');
     });
 
     it('defaults optional fields (contactName, phone)', () => {
-      const doc = buildStationDocument({ longitude: 0, latitude: 0, stationId: 'ST-1', status: 'active', type: 'Load' });
+      const doc = buildStationDocument({ longitude: 0, latitude: 0, stationId: 'ST-1', status: 'active'});
       assert.equal(doc.contactName, '');
       assert.equal(doc.phone, '');
       assert.equal(doc.createdBy, '');
@@ -579,9 +570,9 @@ describe('TC-AD-06: Updating Facility Information', () => {
 describe('TC-AD-07: Removing Station', () => {
 
   const stations = [
-    { id: 'doc-1', stationId: 'ST-001', type: 'Load', status: 'active' },
-    { id: 'doc-2', stationId: 'ST-002', type: 'Unload', status: 'maintenance' },
-    { id: 'doc-3', StationId: 'ST-003', type: 'Load', status: 'inactive' }
+    { id: 'doc-1', stationId: 'ST-001', status: 'active' },
+    { id: 'doc-2', stationId: 'ST-002', status: 'maintenance' },
+    { id: 'doc-3', StationId: 'ST-003', status: 'inactive' }
   ];
 
   describe('filterStations', () => {

@@ -267,10 +267,10 @@ export async function initFacilityEdit(root) {
     saveMsg.textContent = '';
 
     const updates = buildFacilityUpdate({
-      Name:         root.querySelector('#facName').value,
-      Adress:      root.querySelector('#facAddress').value,
-      Capacity:     root.querySelector('#facCapacity').value,
-      Status:       root.querySelector('#facStatus').value,
+      name:         root.querySelector('#facName').value,
+      address:      root.querySelector('#facAddress').value,
+      capacity:     root.querySelector('#facCapacity').value,
+      status:       root.querySelector('#facStatus').value,
       contactName:  root.querySelector('#facContact').value,
       phone:        root.querySelector('#facPhone').value,
       weekdayStart: root.querySelector('#facWdStart').value,

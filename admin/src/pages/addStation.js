@@ -47,18 +47,9 @@ export function initAddStation(root) {
                   <option value="maintenance">Maintenance</option>
                 </select>
               </div>
-
               <div class="form-row">
-                <label>Type</label>
-                <select id="type">
-                  <option value="Load">Load</option>
-                  <option value="Unload">Unload</option>
-                </select>
-              </div>
-
-              <div class="form-row">
-                <label>Station ID</label>
-                <input id="stationId" class="station-id-input" required placeholder="Station ID" />
+                <label>Station Name</label>
+                <input id="stationId" class="station-id-input" required placeholder="Station Name" />
               </div>
             </div>
 
@@ -85,7 +76,6 @@ export function initAddStation(root) {
       root.querySelector("#latitude").value,
       root.querySelector("#stationId").value,
       root.querySelector("#status").value,
-      root.querySelector("#type").value
     );
 
     if (!result.valid) {
@@ -98,7 +88,6 @@ export function initAddStation(root) {
       longitude: result.longitude,
       latitude: result.latitude,
       status: result.status,
-      type: result.type,
       stationId: result.stationId
     };
 
@@ -108,7 +97,6 @@ export function initAddStation(root) {
         <div class="summary-item"><span>Longitude</span><span>${escapeHtml(basics.longitude)}</span></div>
         <div class="summary-item"><span>Latitude</span><span>${escapeHtml(basics.latitude)}</span></div>
         <div class="summary-item"><span>Status</span><span>${escapeHtml(basics.status)}</span></div>
-        <div class="summary-item"><span>Type</span><span>${escapeHtml(basics.type || "-")}</span></div>
       </div>
     `;
     renderStep2();

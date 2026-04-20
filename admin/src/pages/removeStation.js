@@ -17,16 +17,14 @@ export function initRemoveStation(root) {
     <div class="remove-layout">
       <div class="remove-list">
         <div class="list-header">
-          <input id="stationSearch" placeholder="Search stations by type/status..." />
+          <input id="stationSearch" placeholder="Search stations by status/name..." />
         </div>
         <div class="table-wrap">
           <table class="station-table">
             <thead>
               <tr>
                 <th><input id="selectAll" type="checkbox"/></th>
-                <th>Doc ID</th>
                 <th>Station ID</th>
-                <th>Type</th>
                 <th>Status</th>
                 <th>Longitude</th>
                 <th>Latitude</th>
@@ -78,11 +76,9 @@ export function initRemoveStation(root) {
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td><input data-id="${s.id}" class="row-select" type="checkbox" ${selected.has(s.id) ? "checked" : ""} /></td>
-        <td style="font-family:ui-monospace, SFMono-Regular, Menlo, monospace;">${s.id}</td>
         <td>${stationId}</td>
-        <td>${s.type || "-"}</td>
         <td>${s.status || "-"}</td>
-        <td>${s.longitude ?? "-"}</td>
+        <td>${s.longitude ?? s.longtitude ?? "-"}</td>
         <td>${s.latitude ?? "-"}</td>
       `;
       tbody.appendChild(tr);
@@ -104,7 +100,11 @@ export function initRemoveStation(root) {
     const ids = Array.from(selected);
     summaryCount.textContent = ids.length;
     summarySelectedList.innerHTML = ids
-      .map(id => `<div class="summary-item">${id}</div>`)
+      .map(id => {
+        const s = stationsCache.find(st => st.id === id);
+        const label = s?.stationId || s?.StationId || id;
+        return `<div class="summary-item">${label}</div>`;
+      })
       .join("");
   }
 
