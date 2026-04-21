@@ -1,3 +1,9 @@
+// Session guard — login olmadan dashboard açılmasın
+const hasSession = localStorage.getItem('admin_session') === 'true';
+if (!hasSession) {
+  window.location.href = './login.html';
+}
+
 const nav = document.getElementById("adminNav");
 const viewRoot = document.getElementById("viewRoot");
 const pageTitle = document.getElementById("pageTitle");
