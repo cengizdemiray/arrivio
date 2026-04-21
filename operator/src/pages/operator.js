@@ -5,6 +5,126 @@ import { renderIssueCreateView } from './operatorIssue.js';
 import { renderFacilityStatusView } from './operatorFacility.js';
 import { renderQueueManagerView } from './operatorQueue.js';
 import { renderProfileView } from './operatorProfile.js';
+function safeParseFocus(raw) {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function formatNow() {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mi = String(d.getMinutes()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
+}
+
+function formatDateTime(date) {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+  const hh = String(date.getHours()).padStart(2, '0');
+  const mi = String(date.getMinutes()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
+}
+
+function normalizeStationStatus(status) {
+  if (!status) return 'Operational';
+  const normalized = String(status).toLowerCase();
+  if (normalized === 'active' || normalized === 'operational') return 'Operational';
+  if (normalized === 'maintenance') return 'Maintenance';
+  return 'Paused';
+}
+
+function normalizeQueueStatus(status) {
+  if (!status) return 'Waiting';
+  const normalized = String(status).trim().toLowerCase();
+  if (normalized === 'completed') return 'Completed';
+  if (normalized === 'in service' || normalized === 'in-service' || normalized === 'servicing') return 'In Service';
+  if (normalized === 'scheduled') return 'Scheduled';
+  if (normalized === 'active') return 'Active';
+  if (normalized === 'waiting' || normalized === 'queued') return 'Waiting';
+  return status;
+}
+
+function isCompletedStatus(status) {
+  return normalizeQueueStatus(status) === 'Completed';
+}
+
+function isActiveQueueStatus(status) {
+  return !isCompletedStatus(status);
+}
+
+function parseAnyDate(value) {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  if (typeof value?.toDate === 'function') return value.toDate();
+  if (typeof value?.seconds === 'number') {
+    const ms = value.seconds * 1000 + Math.floor((value.nanoseconds || 0) / 1e6);
+    return new Date(ms);
+  }
+  if (typeof value === 'string') {
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+    return null;
+  }
+  if (typeof value === 'number') return new Date(value);
+  return null;
+}
+
+function toDateKey(value) {
+  const date = parseAnyDate(value);
+  if (!date) return '';
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function etaToMillis(value) {
+  const date = parseAnyDate(value);
+  if (date) return date.getTime();
+  if (typeof value === 'string') {
+    const trimmed = value.trim().toLowerCase();
+    const match = trimmed.match(/(\d+)\s*min/);
+    if (match) {
+      return Date.now() + Number(match[1]) * 60 * 1000;
+    }
+    const timeMatch = trimmed.match(/^(\d{1,2})[:.](\d{2})$/);
+    if (timeMatch) {
+      const hours = Number(timeMatch[1]);
+      const minutes = Number(timeMatch[2]);
+      if (Number.isFinite(hours) && Number.isFinite(minutes)) {
+        const now = new Date();
+        return new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes).getTime();
+      }
+    }
+  }
+  return Number.POSITIVE_INFINITY;
+}
+
+function buildQueueEntriesByStation(queueDocs) {
+  const map = new Map();
+  queueDocs.forEach(docSnap => {
+    const data = docSnap.data() || {};
+    const stationId = data.stationId || data.StationId || '';
+    if (!stationId) return;
+    const entry = {
+      id: docSnap.id,
+      bookingId: data.bookingId || data.BookingId || data.Booking_ID || '',
+      status: data.status || data.Status || '',
+      createdAt: data.createdAt || data.CreatedAt || ''
+    };
+    if (!map.has(stationId)) map.set(stationId, []);
+    map.get(stationId).push(entry);
+  });
+  return map;
+}
 
 const mockIssues = [];
 const mockFacility = {};
@@ -25,26 +145,6 @@ let currentOperatorName = localStorage.getItem('operator_user_name') || null;
 let currentOperatorEmail = localStorage.getItem('operator_user_email') || null;
 let focusedStation = safeParseFocus(localStorage.getItem('operator_focus_station'));
 const hasSession = localStorage.getItem('operator_session') === 'true';
-
-function safeParseFocus(raw) {
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-}
-
-// Simple timestamp helper used across views
-function formatNow() {
-  const d = new Date();
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  const hh = String(d.getHours()).padStart(2, '0');
-  const mi = String(d.getMinutes()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
-}
 
 function getCurrentOperator() {
   if (!hasSession) return null;
@@ -256,15 +356,6 @@ async function loadIssues(force = false) {
   return cachedIssues;
 }
 
-function formatDateTime(date) {
-  const yyyy = date.getFullYear();
-  const mm = String(date.getMonth() + 1).padStart(2, '0');
-  const dd = String(date.getDate()).padStart(2, '0');
-  const hh = String(date.getHours()).padStart(2, '0');
-  const mi = String(date.getMinutes()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
-}
-
 async function loadFacility(force = false) {
   if (cachedFacility && !force) return cachedFacility;
   try {
@@ -335,7 +426,6 @@ async function fetchStationsFromFirestore() {
         code: stationId,
         name: data.name || data.stationName || data.Name || stationId || 'Station',
         status: normalizeStationStatus(data.status),
-        type: data.type || '',
         contactName: data.contactName || '',
         phone: data.phone || '',
         eta: data.eta || '',
@@ -371,32 +461,6 @@ async function loadStationsSnapshot() {
   if (!primary.empty) return primary;
   const fallback = await getDocs(collection(db, 'stations'));
   return fallback;
-}
-
-function buildQueueEntriesByStation(queueDocs) {
-  const map = new Map();
-  queueDocs.forEach(docSnap => {
-    const data = docSnap.data() || {};
-    const stationId = data.stationId || data.StationId || '';
-    if (!stationId) return;
-    const entry = {
-      id: docSnap.id,
-      bookingId: data.bookingId || data.BookingId || data.Booking_ID || '',
-      status: data.status || data.Status || '',
-      createdAt: data.createdAt || data.CreatedAt || ''
-    };
-    if (!map.has(stationId)) map.set(stationId, []);
-    map.get(stationId).push(entry);
-  });
-  return map;
-}
-
-function normalizeStationStatus(status) {
-  if (!status) return 'Operational';
-  const normalized = String(status).toLowerCase();
-  if (normalized === 'active' || normalized === 'operational') return 'Operational';
-  if (normalized === 'maintenance') return 'Maintenance';
-  return 'Paused';
 }
 
 async function fetchStationQueueFromFirestore(stationId) {
@@ -536,73 +600,6 @@ function buildHistoryFromBookings(bookingsDocs, activeDates = new Set()) {
     });
   });
   return list;
-}
-
-function toDateKey(value) {
-  const date = parseAnyDate(value);
-  if (!date) return '';
-  const yyyy = date.getFullYear();
-  const mm = String(date.getMonth() + 1).padStart(2, '0');
-  const dd = String(date.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
-}
-
-function parseAnyDate(value) {
-  if (!value) return null;
-  if (value instanceof Date) return value;
-  if (typeof value?.toDate === 'function') return value.toDate();
-  if (typeof value?.seconds === 'number') {
-    const ms = value.seconds * 1000 + Math.floor((value.nanoseconds || 0) / 1e6);
-    return new Date(ms);
-  }
-  if (typeof value === 'string') {
-    const parsed = new Date(value);
-    if (!Number.isNaN(parsed.getTime())) return parsed;
-    return null;
-  }
-  if (typeof value === 'number') return new Date(value);
-  return null;
-}
-
-function etaToMillis(value) {
-  const date = parseAnyDate(value);
-  if (date) return date.getTime();
-  if (typeof value === 'string') {
-    const trimmed = value.trim().toLowerCase();
-    const match = trimmed.match(/(\d+)\s*min/);
-    if (match) {
-      return Date.now() + Number(match[1]) * 60 * 1000;
-    }
-    const timeMatch = trimmed.match(/^(\d{1,2})[:.](\d{2})$/);
-    if (timeMatch) {
-      const hours = Number(timeMatch[1]);
-      const minutes = Number(timeMatch[2]);
-      if (Number.isFinite(hours) && Number.isFinite(minutes)) {
-        const now = new Date();
-        return new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes).getTime();
-      }
-    }
-  }
-  return Number.POSITIVE_INFINITY;
-}
-
-function normalizeQueueStatus(status) {
-  if (!status) return 'Waiting';
-  const normalized = String(status).trim().toLowerCase();
-  if (normalized === 'completed') return 'Completed';
-  if (normalized === 'in service' || normalized === 'in-service' || normalized === 'servicing') return 'In Service';
-  if (normalized === 'scheduled') return 'Scheduled';
-  if (normalized === 'active') return 'Active';
-  if (normalized === 'waiting' || normalized === 'queued') return 'Waiting';
-  return status;
-}
-
-function isCompletedStatus(status) {
-  return normalizeQueueStatus(status) === 'Completed';
-}
-
-function isActiveQueueStatus(status) {
-  return !isCompletedStatus(status);
 }
 
 async function completeQueueBooking(entry = {}) {

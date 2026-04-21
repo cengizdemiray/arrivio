@@ -1,6 +1,7 @@
 ﻿// js/pages/operatorIssue.js
 import { db } from '../sevices/firebaseClient.js';
 import { addDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+import { validateIssueInput, buildIssueDocument, isIssueResolved } from '../services/operatorServices.js';
 
 export async function renderIssueCreateView(root, deps) {
   const {
@@ -96,14 +97,10 @@ export async function renderIssueCreateView(root, deps) {
   const stations = (await loadQueueStations?.()) || [];
   stationSelect.innerHTML = stations.map(s => `<option value="${s.code}">${s.name} (${s.code})</option>`).join('');
 
-  function isResolved(issue) {
-    return ["resolved", "solved"].includes(String(issue?.status || issue?.Status || '').toLowerCase());
-  }
-
   function renderRecent(list) {
     recent.innerHTML = '';
     (list || []).slice(0, 4).forEach(i => {
-      const statusText = isResolved(i) ? 'Solved' : 'Waiting';
+      const statusText = isIssueResolved(i) ? 'Solved' : 'Waiting';
       const li = document.createElement('li');
       li.innerHTML = `<strong>${i.title}</strong><div class="meta">${i.station} - ${i.priority} - ${i.created || ''}</div><div class="meta" style="color:${statusText === 'Solved' ? '#0b6b3a' : '#92400e'};">${statusText}</div>`;
       li.style.cursor = 'pointer';
@@ -115,7 +112,7 @@ export async function renderIssueCreateView(root, deps) {
   function showRecentDetail(issue) {
     if (!issue || !recentDetail) return;
     recentDetailTitle.textContent = issue.title;
-    const statusText = isResolved(issue) ? 'Solved' : 'Waiting';
+    const statusText = isIssueResolved(issue) ? 'Solved' : 'Waiting';
     const created = issue.created || '';
     recentDetailMeta.textContent = `${issue.station} - ${statusText} - ${created}`;
     recentDetailDesc.textContent = issue.description || 'No description';
@@ -130,18 +127,22 @@ export async function renderIssueCreateView(root, deps) {
     const reporter = reporterInput.value.trim() || 'Operator Desk';
     const description = root.querySelector('#issueDescription').value.trim();
 
-    if (!title || !station) return;
+    const validation = validateIssueInput(title, station);
+    if (!validation.valid) return;
+
+    const timestamp = formatNow();
+    const issueDoc = buildIssueDocument({ title, station, priority, reporter, description, timestamp });
 
     const newIssue = {
       id: `i${Date.now()}`,
-      title,
-      station,
-      reporter,
-      created: formatNow(),
-      priority,
-      status: 'Waiting',
-      description: description || 'Operator created issue.',
-      comments: [{ by: reporter, text: 'Issue logged from operator panel.', time: formatNow() }]
+      title: issueDoc.title,
+      station: issueDoc.station,
+      reporter: issueDoc.reporter,
+      created: timestamp,
+      priority: issueDoc.priority,
+      status: issueDoc.status,
+      description: issueDoc.description,
+      comments: issueDoc.comments
     };
 
     const submitBtn = form.querySelector('button[type="submit"]');
@@ -150,21 +151,9 @@ export async function renderIssueCreateView(root, deps) {
 
     try {
       const docRef = await addDoc(collection(db, 'issues'), {
-        Title: title,
-        Description: newIssue.description,
-        Facility: station,
-        Priority: priority,
-        Status: 'Waiting',
+        ...issueDoc,
         CreatedAt: serverTimestamp(),
-        title,
-        station,
-        reporter,
-        created: newIssue.created,
-        createdAt: serverTimestamp(),
-        priority,
-        status: 'Waiting',
-        description: newIssue.description,
-        comments: newIssue.comments
+        createdAt: serverTimestamp()
       });
 
       newIssue.id = docRef.id;

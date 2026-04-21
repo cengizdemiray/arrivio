@@ -3,6 +3,12 @@ import { db } from '../sevices/firebaseClient.js';
 import {
   collection, getDocs, doc, updateDoc
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+import {
+  mapStatusToFirestore,
+  buildStationUpdate,
+  facilityPillClass,
+  countStationStatuses
+} from '../services/operatorServices.js';
 
 /**
  * Simplified Facility Status View
@@ -10,7 +16,7 @@ import {
  * Two sections:
  *   1. Facility Info   → read-only card fetched from Firestore "Facility" collection
  *   2. Station List    → each station displayed as an editable card
- *                        (status, type, contact, phone — save per station)
+ *                        (status,contact, phone — save per station)
  */
 export async function renderFacilityStatusView(root, deps) {
   /**
@@ -38,23 +44,12 @@ export async function renderFacilityStatusView(root, deps) {
     console.error('[FacilityView] Failed to load data:', err);
   }
 
-  console.log('[FacilityView] Loaded facility:', facility);
-  console.log('[FacilityView] Loaded stations:', stations.length);
-
   /* ── station status counts */
-  const stationCount = stations.length;
-  /**
-   * Loop through the stations three time and save the status counts for each station 
-   */
-  const operational  = stations.filter(s => s.status === 'Operational').length;
-  const maintenance  = stations.filter(s => s.status === 'Maintenance').length;
-  const paused       = stations.filter(s => s.status === 'Paused').length;
+  const { total: stationCount, operational, maintenance, paused } = countStationStatuses(stations);
 
   /* ── facility status pill class ────────────────────────── */
   const facStatus = (facility.status || 'Unknown');
-  const facPillClass = facStatus === 'Active' ? 'operational'
-                     : facStatus === 'Maintenance' ? 'maintenance'
-                     : 'paused';
+  const facPillClass = facilityPillClass(facStatus);
 
   /* ── render ─────────────────────────────────────────────── */
   root.innerHTML = `
@@ -143,7 +138,6 @@ export async function renderFacilityStatusView(root, deps) {
     saveBtn.addEventListener('click', async () => {
       const card = root.querySelector(`#stationCard${i}`);
       const newStatus  = card.querySelector(`#stStatus${i}`).value;
-      const newType    = card.querySelector(`#stType${i}`).value;
       const newContact = card.querySelector(`#stContact${i}`).value.trim();
       const newPhone   = card.querySelector(`#stPhone${i}`).value.trim();
 
@@ -154,14 +148,7 @@ export async function renderFacilityStatusView(root, deps) {
         const stationDocId = station.id;
         const stationRef = doc(db, 'Station', stationDocId);
 
-        await updateDoc(stationRef, {
-          status: newStatus === 'Operational' ? 'active'
-                : newStatus === 'Maintenance' ? 'maintenance'
-                : 'inactive',
-          type: newType,
-          contactName: newContact,
-          phone: newPhone
-        });
+        await updateDoc(stationRef, buildStationUpdate(newStatus, newContact, newPhone));
 
         // Update local cache
         station.status = newStatus;
@@ -207,7 +194,6 @@ export async function renderFacilityStatusView(root, deps) {
 /* ── helper: single station card HTML ─────────────────── */
 function renderStationCard(station, index) {
   const statusOptions = ['Operational', 'Maintenance', 'Paused'];
-  const typeOptions   = ['Load', 'Unload'];
 
   const pillClass = station.status === 'Operational' ? 'operational'
                   : station.status === 'Maintenance' ? 'maintenance'
@@ -220,7 +206,7 @@ function renderStationCard(station, index) {
         <div style="display:flex; align-items:center; gap:10px;">
           <span id="stArrow${index}" style="font-size:14px; color:var(--muted); transition:transform .2s;">&#9654;</span>
           <div>
-            <div class="title">${station.name || station.code}</div>
+            <div class="title">${(station.name || station.code).split('-')[0]}</div>
             <div class="meta" style="margin-top:4px;">Code: ${station.code}</div>
           </div>
         </div>
@@ -236,12 +222,7 @@ function renderStationCard(station, index) {
               ${statusOptions.map(o => `<option value="${o}" ${o === station.status ? 'selected' : ''}>${o}</option>`).join('')}
             </select>
           </div>
-          <div class="form-col">
-            <label for="stType${index}">Type</label>
-            <select id="stType${index}">
-              ${typeOptions.map(o => `<option value="${o}" ${o === (station.type || '') ? 'selected' : ''}>${o}</option>`).join('')}
-            </select>
-          </div>
+          
           <div class="form-col">
             <label for="stContact${index}">Contact Name</label>
             <input id="stContact${index}" value="${station.contactName || ''}" placeholder="Manager name" />
@@ -268,11 +249,9 @@ function refreshStationCounts(root, stations) {
   const cards = summaryMeta.querySelectorAll('.meta-card');
   if (cards.length < 2) return;
 
-  const op = stations.filter(s => s.status === 'Operational').length;
-  const mt = stations.filter(s => s.status === 'Maintenance').length;
-  const pa = stations.filter(s => s.status === 'Paused').length;
+  const { total, operational: op, maintenance: mt, paused: pa } = countStationStatuses(stations);
 
-  cards[0].querySelector('div:last-child').textContent = stations.length;
+  cards[0].querySelector('div:last-child').textContent = total;
   cards[1].querySelector('div:last-child').innerHTML = `
     <span class="status-pill operational" style="font-size:12px;padding:4px 10px;">Operational ${op}</span>
     <span class="status-pill maintenance" style="font-size:12px;padding:4px 10px;">Maintenance ${mt}</span>

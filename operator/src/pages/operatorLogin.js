@@ -1,6 +1,7 @@
 // js/pages/operatorLogin.js
 import { auth } from '../sevices/firebaseClient.js';
 import { signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
+import { validateLoginInput, buildOperatorSession } from '../services/operatorServices.js';
 
 const form = document.getElementById('loginForm');
 const emailInput = document.getElementById('email');
@@ -26,29 +27,26 @@ form?.addEventListener('submit', async (e) => {
   errorBox.hidden = true;
   pendingBox.hidden = true;
 
-  const email = emailInput.value.trim().toLowerCase();
-  const password = passwordInput.value.trim();
-  if (!email || !password) {
-    showError('Please enter email and password.');
+  const validation = validateLoginInput(emailInput.value, passwordInput.value);
+  if (!validation.valid) {
+    showError(validation.error);
     return;
   }
 
   try {
     // Authenticate via Firebase only; no mock password fallback
-    await signInWithEmailAndPassword(auth, email, password);
+    await signInWithEmailAndPassword(auth, validation.email, validation.password);
   } catch (err) {
     showError(err?.message || 'Invalid credentials.');
     return;
   }
 
   const user = auth.currentUser;
-  const operatorId = user?.uid || email;
-  const operatorEmail = user?.email || email;
-  const operatorName = (user?.displayName || email.split('@')[0] || 'Operator').trim();
+  const session = buildOperatorSession(user, validation.email);
 
   localStorage.setItem('operator_session', 'true');
-  localStorage.setItem('operator_user_id', operatorId);
-  localStorage.setItem('operator_user_email', operatorEmail);
-  localStorage.setItem('operator_user_name', operatorName);
+  localStorage.setItem('operator_user_id', session.operatorId);
+  localStorage.setItem('operator_user_email', session.operatorEmail);
+  localStorage.setItem('operator_user_name', session.operatorName);
   window.location.href = './index.html';
 });
