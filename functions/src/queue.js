@@ -1,10 +1,11 @@
 const cors = require('cors')({ origin: true });
 const { onRequest } = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
+const { getFirestore, Timestamp, FieldValue } = require("firebase-admin/firestore");
 if (!admin.apps.length) {
     admin.initializeApp();
 }
-const db = admin.firestore();
+const db = getFirestore();
 const REGION = "europe-west3";
 
 function normStatus(value) {
@@ -57,8 +58,8 @@ exports.enterQueue = onRequest(
 
             // arrivalTime ve queuedAt alanlarını seçilen slota eşit tutuyoruz.
             // Yani server now değil, kullanıcının booking slot zamanı yazılıyor.
-            const arrivalTimestamp = admin.firestore.Timestamp.fromDate(slotStartDate);
-            const queuedTimestamp = admin.firestore.Timestamp.fromDate(slotStartDate);
+            const arrivalTimestamp = Timestamp.fromDate(slotStartDate);
+            const queuedTimestamp = Timestamp.fromDate(slotStartDate);
 
             // Sayaç dokümanları.
             // Bunlar sayesinde id'leri B-1, Q-1 formatında üretiyoruz.
@@ -95,7 +96,7 @@ exports.enterQueue = onRequest(
                     arrivalTime: arrivalTimestamp,
                     bookingStatus: "Active",
                     carrierId,
-                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                    createdAt: FieldValue.serverTimestamp(),
                     queueStatus: "Queued",
                     queuedAt: queuedTimestamp,
                     slotEnd: slotEndLabel,
@@ -112,11 +113,11 @@ exports.enterQueue = onRequest(
                     stationId,
                     slotKey,
                     slotEnd: slotEndLabel,
-                    slotStartAt: admin.firestore.Timestamp.fromDate(slotStartDate),
-                    slotEndAt: admin.firestore.Timestamp.fromDate(slotEndDate),
+                    slotStartAt: Timestamp.fromDate(slotStartDate),
+                    slotEndAt: Timestamp.fromDate(slotEndDate),
                     queueStatus: "Queued",
                     queuedAt: queuedTimestamp,
-                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                    createdAt: FieldValue.serverTimestamp(),
                 });
 
                 // Sayaçları güncelliyoruz.
@@ -124,7 +125,7 @@ exports.enterQueue = onRequest(
                     bookingCounterRef,
                     {
                         lastNumber: nextBookingNo,
-                        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                        updatedAt: FieldValue.serverTimestamp(),
                     },
                     { merge: true }
                 );
@@ -133,7 +134,7 @@ exports.enterQueue = onRequest(
                     queueCounterRef,
                     {
                         lastNumber: nextQueueNo,
-                        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                        updatedAt: FieldValue.serverTimestamp(),
                     },
                     { merge: true }
                 );
@@ -199,7 +200,7 @@ exports.startService = onRequest(
 
                 tx.update(entryRef, {
                     queueStatus: "InProgress",
-                    startedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    startedAt: FieldValue.serverTimestamp(),
                     startedBy: operatorId ?? null,
                 });
 
@@ -209,8 +210,8 @@ exports.startService = onRequest(
                         {
                             bookingStatus: "InProgress",
                             queueStatus: "InProgress",
-                            startedAt: admin.firestore.FieldValue.serverTimestamp(),
-                            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                            startedAt: FieldValue.serverTimestamp(),
+                            updatedAt: FieldValue.serverTimestamp(),
                         },
                         { merge: true }
                     );
@@ -281,7 +282,7 @@ exports.completeService = onRequest(
                     await tx.get(bookingRef);
                 }
 
-                const completedAt = admin.firestore.Timestamp.now();
+                const completedAt = Timestamp.now();
                 tx.update(entryRef, {
                     queueStatus: "Completed",
                     completedAt,
@@ -319,7 +320,7 @@ exports.completeService = onRequest(
                             bookingStatus: "Completed",
                             queueStatus: "Completed",
                             completedAt,
-                            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                            updatedAt: FieldValue.serverTimestamp(),
                         },
                         { merge: true }
                     );
@@ -366,18 +367,20 @@ exports.cancelQueueEntry = onRequest(
 
                 tx.update(entryRef, {
                     queueStatus: "Cancelled",
-                    cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
+                    cancelledAt: FieldValue.serverTimestamp(),
                     cancelledBy: operatorId ?? null,
                     cancellationReason: reason ?? "NoShow",
                 });
             });
+
+            return res.status(200).json({ message: "Queue entry cancelled" });
         } catch (err) {
             console.error("cancelQueueEntry error:", err);
 
             const code = String(err?.message || "UNKNOWN");
             const map = {
                 ENTRY_NOT_FOUND: [404, "Queue entry not found"],
-                NOT_QUEUED: [409, "Only Queued entries can be cancelled"],
+                ONLY_QUEUED_CAN_BE_CANCELLED: [409, "Only Queued entries can be cancelled"],
             };
             if (map[code]) {
                 const [status, msg] = map[code];
