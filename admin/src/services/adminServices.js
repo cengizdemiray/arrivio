@@ -243,33 +243,47 @@ export function parseCoordinate(value) {
 
 /**
  * Validate add-station form inputs.
+ * stationName = kullanıcının girdiği isim (Name alanı)
  */
-export function validateStationInput(longitude, latitude, stationId, status) {
+export function validateStationInput(longitude, latitude, stationName, status) {
   const lon = parseCoordinate(longitude);
   const lat = parseCoordinate(latitude);
 
   if (Number.isNaN(lon) || Number.isNaN(lat)) {
     return { valid: false, error: 'Invalid coordinates' };
   }
-  if (!stationId || !String(stationId).trim()) {
-    return { valid: false, error: 'Station ID is required' };
+  if (!stationName || !String(stationName).trim()) {
+    return { valid: false, error: 'Station Name is required' };
   }
   if (!status || !String(status).trim()) {
     return { valid: false, error: 'Status is required' };
   }
-  return { valid: true, longitude: lon, latitude: lat, stationId: String(stationId).trim(), status: String(status).trim()};
+  return { valid: true, longitude: lon, latitude: lat, stationName: String(stationName).trim(), status: String(status).trim()};
+}
+
+/**
+ * Generate stationId from counter number. Pure function.
+ * e.g. 1 → "ST-1", 5 → "ST-5"
+ */
+export function generateStationId(counterNumber) {
+  const num = parseInt(counterNumber, 10);
+  if (!Number.isFinite(num) || num < 1) return null;
+  return `ST-${num}`;
 }
 
 /**
  * Build the station document for Firestore.
+ * stationId = auto-generated (ST-1, ST-2, ...)
+ * stationName = user-entered name (saved as Name)
  */
-export function buildStationDocument({ longitude, latitude, status, stationId, contactName, phone, createdByUid }) {
+export function buildStationDocument({ longitude, latitude, status, stationId, stationName, contactName, phone, createdByUid }) {
   return {
     longitude,
     latitude,
     status,
     stationId,
     StationId: stationId,
+    Name: stationName || '',
     contactName: contactName || '',
     phone: phone || '',
     createdBy: createdByUid || ''
@@ -354,7 +368,8 @@ export function filterStations(stations, query = '') {
   return stations.filter(s => {
     const status = String(s.status || '').toLowerCase();
     const stationId = String(s.stationId || s.StationId || '').toLowerCase();
-    return status.includes(q) || s.id.toLowerCase().includes(q) || stationId.includes(q);
+    const name = String(s.Name || s.name || '').toLowerCase();
+    return status.includes(q) || s.id.toLowerCase().includes(q) || stationId.includes(q) || name.includes(q);
   });
 }
 

@@ -3,11 +3,15 @@ import { auth, db } from "../app/config.js";
 import {
   collection,
   addDoc,
+  doc,
+  getDoc,
+  runTransaction,
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 import {
   validateStationInput,
-  buildStationDocument
+  buildStationDocument,
+  generateStationId
 } from "../services/adminServices.js";
 
 export function initAddStation(root) {
@@ -88,12 +92,12 @@ export function initAddStation(root) {
       longitude: result.longitude,
       latitude: result.latitude,
       status: result.status,
-      stationId: result.stationId
+      stationName: result.stationName
     };
 
     summary.innerHTML = `
       <div class="summary-list">
-        <div class="summary-item"><span>Station ID</span><span>${escapeHtml(basics.stationId || "-")}</span></div>
+        <div class="summary-item"><span>Station Name</span><span>${escapeHtml(basics.stationName || "-")}</span></div>
         <div class="summary-item"><span>Longitude</span><span>${escapeHtml(basics.longitude)}</span></div>
         <div class="summary-item"><span>Latitude</span><span>${escapeHtml(basics.latitude)}</span></div>
         <div class="summary-item"><span>Status</span><span>${escapeHtml(basics.status)}</span></div>
@@ -130,19 +134,34 @@ export function initAddStation(root) {
       }
 
       try {
-        const station = {
-          ...buildStationDocument({
-            ...basics,
-            contactName: wizardContent.querySelector("#contactName").value,
-            phone: wizardContent.querySelector("#phone").value,
-            createdByUid: auth.currentUser.uid
-          }),
-          createdAt: serverTimestamp()
-        };
+        const counterRef = doc(db, "_counters", "station");
+        let stationId;
 
-        await addDoc(collection(db, "Station"), station);
+        await runTransaction(db, async (tx) => {
+          const counterSnap = await tx.get(counterRef);
+          const currentNo = counterSnap.exists()
+            ? Number(counterSnap.data().lastNumber ?? 0)
+            : 0;
+          const nextNo = currentNo + 1;
+          stationId = generateStationId(nextNo);
 
-        msg2.textContent = "Station saved ✅";
+          const station = {
+            ...buildStationDocument({
+              ...basics,
+              stationId,
+              contactName: wizardContent.querySelector("#contactName").value,
+              phone: wizardContent.querySelector("#phone").value,
+              createdByUid: auth.currentUser.uid
+            }),
+            createdAt: serverTimestamp()
+          };
+
+          const stationRef = doc(collection(db, "Station"), stationId);
+          tx.set(stationRef, station);
+          tx.set(counterRef, { lastNumber: nextNo, updatedAt: serverTimestamp() }, { merge: true });
+        });
+
+        msg2.textContent = `Station saved ✅ (${stationId})`;
         msg2.style.color = "green";
 
         setTimeout(() => initAddStation(root), 800);

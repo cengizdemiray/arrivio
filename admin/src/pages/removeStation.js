@@ -24,7 +24,7 @@ export function initRemoveStation(root) {
             <thead>
               <tr>
                 <th><input id="selectAll" type="checkbox"/></th>
-                <th>Station ID</th>
+                <th>Station Name</th>
                 <th>Status</th>
                 <th>Longitude</th>
                 <th>Latitude</th>
@@ -72,11 +72,11 @@ export function initRemoveStation(root) {
     tbody.innerHTML = "";
 
     filtered.forEach(s => {
-      const stationId = s.stationId || s.StationId || "-";
+      const stationName = s.Name || s.name || s.stationId || s.StationId || "-";
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td><input data-id="${s.id}" class="row-select" type="checkbox" ${selected.has(s.id) ? "checked" : ""} /></td>
-        <td>${stationId}</td>
+        <td>${stationName}</td>
         <td>${s.status || "-"}</td>
         <td>${s.longitude ?? s.longtitude ?? "-"}</td>
         <td>${s.latitude ?? "-"}</td>
@@ -102,7 +102,7 @@ export function initRemoveStation(root) {
     summarySelectedList.innerHTML = ids
       .map(id => {
         const s = stationsCache.find(st => st.id === id);
-        const label = s?.stationId || s?.StationId || id;
+        const label = s?.Name || s?.name || s?.stationId || s?.StationId || id;
         return `<div class="summary-item">${label}</div>`;
       })
       .join("");

@@ -34,6 +34,7 @@ import {
   parseCoordinate,
   validateStationInput,
   buildStationDocument,
+  generateStationId,
   buildFacilityUpdate,
   normalizeIssue,
   searchIssues,
@@ -449,51 +450,74 @@ describe('TC-AD-05: Adding/Removing Stations', () => {
 
   describe('validateStationInput', () => {
     it('accepts valid inputs', () => {
-      const r = validateStationInput('32.85', '39.92', 'ST-NEW', 'active');
+      const r = validateStationInput('32.85', '39.92', 'Loading Bay', 'active');
       assert.equal(r.valid, true);
       assert.equal(r.longitude, 32.85);
       assert.equal(r.latitude, 39.92);
-      assert.equal(r.stationId, 'ST-NEW');
+      assert.equal(r.stationName, 'Loading Bay');
       assert.equal(r.status, 'active');
     });
 
     it('rejects invalid longitude', () => {
-      const r = validateStationInput('abc', '39.92', 'ST-1', 'active');
+      const r = validateStationInput('abc', '39.92', 'Station1', 'active');
       assert.equal(r.valid, false);
       assert.ok(r.error.includes('coordinates'));
     });
 
     it('rejects invalid latitude', () => {
-      const r = validateStationInput('32.85', 'xyz', 'ST-1', 'active');
+      const r = validateStationInput('32.85', 'xyz', 'Station1', 'active');
       assert.equal(r.valid, false);
     });
 
-    it('rejects empty station ID', () => {
+    it('rejects empty station name', () => {
       const r = validateStationInput('32.85', '39.92', '', 'active');
       assert.equal(r.valid, false);
-      assert.ok(r.error.includes('Station ID'));
+      assert.ok(r.error.includes('Station Name'));
     });
 
     it('handles comma decimal separator', () => {
-      const r = validateStationInput('32,85', '39,92', 'ST-1', 'active');
+      const r = validateStationInput('32,85', '39,92', 'Station1', 'active');
       assert.equal(r.valid, true);
       assert.equal(r.longitude, 32.85);
     });
 
     it('rejects empty status', () => {
-      const r = validateStationInput('32.85', '39.92', 'ST-1', '');
+      const r = validateStationInput('32.85', '39.92', 'Station1', '');
       assert.equal(r.valid, false);
       assert.ok(r.error.includes('Status'));
     });
   });
 
+  describe('generateStationId', () => {
+    it('generates ST-1 from counter 1', () => {
+      assert.equal(generateStationId(1), 'ST-1');
+    });
+
+    it('generates ST-10 from counter 10', () => {
+      assert.equal(generateStationId(10), 'ST-10');
+    });
+
+    it('returns null for zero', () => {
+      assert.equal(generateStationId(0), null);
+    });
+
+    it('returns null for negative number', () => {
+      assert.equal(generateStationId(-3), null);
+    });
+
+    it('handles string input', () => {
+      assert.equal(generateStationId('5'), 'ST-5');
+    });
+  });
+
   describe('buildStationDocument', () => {
-    it('builds complete station document', () => {
+    it('builds complete station document with auto-generated id and name', () => {
       const doc = buildStationDocument({
         longitude: 32.85,
         latitude: 39.92,
         status: 'active',
         stationId: 'ST-5',
+        stationName: 'Loading Bay',
         contactName: 'Manager',
         phone: '555-0000',
         createdByUid: 'admin-1'
@@ -502,6 +526,7 @@ describe('TC-AD-05: Adding/Removing Stations', () => {
       assert.equal(doc.latitude, 39.92);
       assert.equal(doc.stationId, 'ST-5');
       assert.equal(doc.StationId, 'ST-5');
+      assert.equal(doc.Name, 'Loading Bay');
       assert.equal(doc.createdBy, 'admin-1');
     });
 
@@ -570,9 +595,9 @@ describe('TC-AD-06: Updating Facility Information', () => {
 describe('TC-AD-07: Removing Station', () => {
 
   const stations = [
-    { id: 'doc-1', stationId: 'ST-001', status: 'active' },
-    { id: 'doc-2', stationId: 'ST-002', status: 'maintenance' },
-    { id: 'doc-3', StationId: 'ST-003', status: 'inactive' }
+    { id: 'doc-1', stationId: 'ST-001', Name: 'Loading Bay', status: 'active' },
+    { id: 'doc-2', stationId: 'ST-002', Name: 'Unloading Dock', status: 'maintenance' },
+    { id: 'doc-3', StationId: 'ST-003', Name: 'Warehouse Gate', status: 'inactive' }
   ];
 
   describe('filterStations', () => {
@@ -607,6 +632,18 @@ describe('TC-AD-07: Removing Station', () => {
     it('is case-insensitive', () => {
       assert.equal(filterStations(stations, 'MAINTENANCE').length, 1);
       assert.equal(filterStations(stations, 'INACTIVE').length, 1);
+    });
+
+    it('filters by Name', () => {
+      const result = filterStations(stations, 'Loading Bay');
+      assert.equal(result.length, 1);
+      assert.equal(result[0].id, 'doc-1');
+    });
+
+    it('filters by partial name', () => {
+      const result = filterStations(stations, 'dock');
+      assert.equal(result.length, 1);
+      assert.equal(result[0].Name, 'Unloading Dock');
     });
 
     it('returns empty for no matches', () => {
@@ -749,10 +786,10 @@ describe('TC-AD-09: Error Handling', () => {
     assert.ok(r.error.toLowerCase().includes('coordinates'));
   });
 
-  it('station validation returns error for missing station ID', () => {
-    const r = validateStationInput('32.85', '39.92', '', 'active', 'Load');
+  it('station validation returns error for missing station name', () => {
+    const r = validateStationInput('32.85', '39.92', '', 'active');
     assert.equal(r.valid, false);
-    assert.ok(r.error.includes('Station ID'));
+    assert.ok(r.error.includes('Station Name'));
   });
 
   it('normalizeCarrier handles completely empty data', () => {
