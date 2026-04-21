@@ -8,8 +8,8 @@
     "test": "node --test tests/**/*.test.js",
     "test:operator": "node --test tests/operator/*.test.js",
     "test:admin": "node --test tests/admin/*.test.js",
-    "test:jest": "jest --verbose",
-    "test:jest:coverage": "jest --verbose --coverage"
+    "test:jest": "jest --config jest.config.cjs --verbose",
+    "test:jest:coverage": "jest --config jest.config.cjs --verbose --coverage"
   },
   "devDependencies": {
     "jest": "^29.7.0",
