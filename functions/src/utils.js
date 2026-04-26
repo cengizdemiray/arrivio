@@ -71,7 +71,7 @@ function optimalTruckPerSlot(avgServiceTimeMin, slotTimeInterval=15, targetUtili
   const lambdaTarget = lambdaTargetPerMin(targetUtilization, muPerMin);
   const slotCapacity = lambdaTarget * slotTimeInterval;
   const capacity = Math.floor(slotCapacity);
-  return Math.max(1,capacity);
+  return Math.max(0,capacity);
 }
 
 
