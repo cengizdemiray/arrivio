@@ -1,10 +1,13 @@
 const mockTxGet = jest.fn();
 const mockTxSet = jest.fn();
+const mockTxUpdate = jest.fn();
 const mockRunTransaction = jest.fn((cb) =>
-  cb({ get: mockTxGet, set: mockTxSet, update: jest.fn() })
+  cb({ get: mockTxGet, set: mockTxSet, update: mockTxUpdate })
 );
 const mockDoc = jest.fn((id) => ({ _id: id }));
-const mockCollection = jest.fn(() => ({ doc: mockDoc }));
+const mockLimit = jest.fn(() => ({ _type: "query" }));
+const mockWhere = jest.fn(() => ({ where: mockWhere, limit: mockLimit }));
+const mockCollection = jest.fn(() => ({ doc: mockDoc, where: mockWhere }));
 
 jest.mock("firebase-admin",()=>{
     const firestore=()=>({
@@ -36,7 +39,7 @@ jest.mock("firebase-functions/v2/https", () => ({
 }), { virtual: true });
 
 jest.mock("cors", () => jest.fn(() => jest.fn()), { virtual: true });
-const { enterQueue } = require("../../functions/src/queue");
+const { enterQueue, startService } = require("../../functions/src/queue");
 function makeReq(body){
     return {body};
 }
@@ -168,3 +171,105 @@ describe("enterQueue",()=>{
         );
     });
 });
+
+describe("startService",()=>{
+    beforeEach(()=>{
+        jest.clearAllMocks();
+    });
+    test("400 - queueEntryId eksik", async()=>{
+        const res = makeRes();
+        await startService(makeReq({}), res);
+        expect(res.status).toHaveBeenCalledWith(400);
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({error: expect.stringContaining("required")})
+        );
+    });
+    test("404 - entry bulunamadı",async()=>{
+        mockTxGet.mockResolvedValueOnce({
+            exists: false,
+        });
+        const res = makeRes();
+        await startService(makeReq({queueEntryId: "Q-1000"}),res);
+        expect(res.status).toHaveBeenCalledWith(404);
+    });
+    test("409 - entry status Queued olmalı",async()=>{
+        mockTxGet.mockResolvedValueOnce({
+            exists: true,
+            data: () => ({
+                stationId: "ST-1",
+                queueStatus: "InProgress",
+            }),
+        });
+        const res = makeRes();
+        await startService(makeReq({ queueEntryId: "Q-1" }), res);
+        expect(res.status).toHaveBeenCalledWith(409);
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({ code: "NOT_QUEUED" })
+        );
+    });
+    test("409 - station şuan servis veriyor",async()=>{
+        mockTxGet.mockResolvedValueOnce({
+            exists: true,
+            data: () => ({
+                stationId: "ST-1",
+                queueStatus: "Queued",
+            }),
+        });
+        mockTxGet.mockResolvedValueOnce({
+            empty: false,
+        });
+        const res = makeRes();
+        await startService(makeReq({ queueEntryId: "Q-1" }), res);
+        expect(res.status).toHaveBeenCalledWith(409);
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({ code: "ALREADY_IN_PROGRESS" })
+        );
+    });
+    test("400 - stationId bulunamadı",async()=>{
+        mockTxGet.mockResolvedValueOnce({
+            exists: true,
+            data: () => ({
+                queueStatus: "Queued",
+                // stationId yok
+            }),
+        });
+        const res = makeRes();
+        await startService(makeReq({ queueEntryId: "Q-1" }), res);
+        expect(res.status).toHaveBeenCalledWith(400);
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({ code: "STATION_ID_MISSING" })
+        );
+    });
+    test("200 - başarılı servis başlatma",async()=>{
+        // 1. tx.get(entryRef) = Queued entry
+        mockTxGet.mockResolvedValueOnce({
+            exists: true,
+            data: () => ({
+                stationId: "ST-1",
+                queueStatus: "Queued",
+                bookingId: "B-1",
+            }),
+        });
+        // 2. tx.get(inProgressQuery) = boş
+        mockTxGet.mockResolvedValueOnce({
+            empty: true,
+        });
+        // 3. tx.get(bookingRef) = mevcut
+        mockTxGet.mockResolvedValueOnce({
+            exists: true,
+            data: () => ({}),
+        });
+        const res = makeRes();
+        await startService(makeReq({
+            queueEntryId: "Q-1",
+            operatorId: "OP-1",
+        }), res);
+        expect(res.status).toHaveBeenCalledWith(200);
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({ message: "Service started" })
+        );
+        expect(mockTxUpdate).toHaveBeenCalledTimes(1);
+        expect(mockTxSet).toHaveBeenCalledTimes(1);
+    });
+});
+
