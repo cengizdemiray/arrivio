@@ -5,9 +5,20 @@ const mockRunTransaction = jest.fn((cb) =>
   cb({ get: mockTxGet, set: mockTxSet, update: mockTxUpdate })
 );
 const mockDoc = jest.fn((id) => ({ _id: id }));
-const mockLimit = jest.fn(() => ({ _type: "query" }));
-const mockWhere = jest.fn(() => ({ where: mockWhere, limit: mockLimit }));
-const mockCollection = jest.fn(() => ({ doc: mockDoc, where: mockWhere }));
+const mockGet = jest.fn();
+const mockOrderBy = jest.fn(() => ({ limit: mockLimit, get: mockGet }));
+const mockLimit = jest.fn(() => ({ get: mockGet, _type: "query" }));
+const mockWhere = jest.fn(() => ({
+    where: mockWhere,
+    limit: mockLimit,
+    orderBy: mockOrderBy,
+    get: mockGet,
+}));
+const mockCollection = jest.fn(() => ({
+    doc: mockDoc,
+    where: mockWhere,
+    get: mockGet,
+}));
 
 jest.mock("firebase-admin",()=>{
     const firestore=()=>({
@@ -40,7 +51,7 @@ jest.mock("firebase-functions/v2/https", () => ({
 
 jest.mock("cors", () => jest.fn(() => jest.fn()), { virtual: true });
 const e = require("cors");
-const { enterQueue, startService, completeService, cancelQueueEntry} = require("../../functions/src/queue");
+const { enterQueue, startService, completeService, cancelQueueEntry,getActiveStations,getStationQueue} = require("../../functions/src/queue");
 function makeReq(body){
     return {body};
 }
@@ -447,3 +458,99 @@ describe("cancelQueueEntry",()=>{
         );
     });
 });
+describe("getActiveStations",()=>{
+    beforeEach(() => {
+        jest.clearAllMocks();
+    });
+    test("200 - aktif istasyonları döner",async()=>{
+        mockGet.mockResolvedValueOnce({
+            docs: [
+                {
+                    id: "ST-1",
+                    data: () => ({
+                        name: "Port A",
+                        status: "active",
+                        avgServiceTimeMin: 10,
+                        completedJobsCount: 5,
+                        totalServiceTimeMin: 50,
+                    }),
+                },
+            ],
+        });
+        const res = makeRes();
+        await getActiveStations(makeReq({}), res);
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({
+                stations: expect.arrayContaining([
+                    expect.objectContaining({
+                        id: "ST-1",
+                        name: "Port A",
+                        confidence: "Medium", // 5 iş: 3-9 arası = Medium
+                    }),
+                ]),
+            })
+        );
+    });
+    test("200 - confidence Low (completedJobs < 3)", async () => {
+        mockGet.mockResolvedValueOnce({
+            docs: [
+                {
+                    id: "ST-2",
+                    data: () => ({
+                        name: "Port B",
+                        status: "active",
+                        avgServiceTimeMin: 10,
+                        completedJobsCount: 1,
+                        totalServiceTimeMin: 10,
+                    }),
+                },
+            ],
+        });
+
+        const res = makeRes();
+        await getActiveStations(makeReq({}), res);
+
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({
+                stations: expect.arrayContaining([
+                    expect.objectContaining({ confidence: "Low" }),
+                ]),
+            })
+        );
+    });
+    test("200 - confidence High (completedJobs >= 10)", async () => {
+        mockGet.mockResolvedValueOnce({
+            docs: [
+                {
+                    id: "ST-3",
+                    data: () => ({
+                        name: "Port C",
+                        status: "active",
+                        avgServiceTimeMin: 8,
+                        completedJobsCount: 15,
+                        totalServiceTimeMin: 120,
+                    }),
+                },
+            ],
+        });
+
+        const res = makeRes();
+        await getActiveStations(makeReq({}), res);
+
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({
+                stations: expect.arrayContaining([
+                    expect.objectContaining({ confidence: "High" }),
+                ]),
+            })
+        );
+    });
+    test("200 - boş liste (aktif istasyon yok)", async () => {
+        mockGet.mockResolvedValueOnce({ docs: [] });
+
+        const res = makeRes();
+        await getActiveStations(makeReq({}), res);
+
+        expect(res.json).toHaveBeenCalledWith({ stations: [] });
+    });
+})
