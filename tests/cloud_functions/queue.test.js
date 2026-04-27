@@ -39,7 +39,7 @@ jest.mock("firebase-functions/v2/https", () => ({
 }), { virtual: true });
 
 jest.mock("cors", () => jest.fn(() => jest.fn()), { virtual: true });
-const { enterQueue, startService } = require("../../functions/src/queue");
+const { enterQueue, startService, completeService } = require("../../functions/src/queue");
 function makeReq(body){
     return {body};
 }
@@ -273,3 +273,110 @@ describe("startService",()=>{
     });
 });
 
+describe("completeService",()=>{
+    beforeEach(() => {
+        jest.clearAllMocks();
+    });
+    test("400 queueEntryId eksik",async()=>{
+        const res = makeRes();
+        await completeService(makeReq({}),res);
+        expect(res.status).toHaveBeenCalledWith(400);
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({error: expect.stringContaining("required")})
+        );
+    });
+    test("404 - entry bulunamadı",async()=>{
+        mockTxGet.mockResolvedValueOnce({ exists: false });
+        const res = makeRes();
+        await completeService(makeReq({ queueEntryId: "Q-1000" }), res);
+        expect(res.status).toHaveBeenCalledWith(404);
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({ code: "ENTRY_NOT_FOUND" })
+        );
+    });
+    test("409 - sadece Inprogress olan entry tamamlanabilir",async()=>{
+        mockTxGet.mockResolvedValueOnce({
+            exists: true,
+            data: () => ({
+                queueStatus: "Queued",
+                stationId: "ST-1",
+            }),
+        });
+        const res = makeRes();
+        await completeService(makeReq({ queueEntryId: "Q-1" }), res);
+        expect(res.status).toHaveBeenCalledWith(409);
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({ code: "NOT_IN_PROGRESS" })
+        );
+    });
+    test("409 - startedAt null olamaz",async()=>{
+        mockTxGet.mockResolvedValueOnce({
+            exists: true,
+            data: () => ({
+                queueStatus: "InProgress",
+                stationId: "ST-1",
+                startedAt: null,  // eksik
+            }),
+        });
+        const res = makeRes();
+        await completeService(makeReq({ queueEntryId: "Q-1" }), res);
+        expect(res.status).toHaveBeenCalledWith(409);
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({ code: "MISSING_STARTED_AT" })
+        );
+    });
+    test("409 - zaten completed",async()=>{
+        mockTxGet.mockResolvedValueOnce({
+            exists: true,
+            data: () => ({
+                queueStatus: "InProgress",
+                stationId: "ST-1",
+                startedAt: 1000000,
+                completedAt: 2000000,  // zaten var
+            }),
+        });
+        const res = makeRes();
+        await completeService(makeReq({ queueEntryId: "Q-1" }), res);
+        expect(res.status).toHaveBeenCalledWith(409);
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({ code: "ALREADY_COMPLETED" })
+        );
+    });
+    test("200 - başarılı servis tamamlama",async()=>{
+        // 1. tx.get(entryRef) = InProgress entry
+        mockTxGet.mockResolvedValueOnce({
+            exists: true,
+            data: () => ({
+                queueStatus: "InProgress",
+                stationId: "ST-1",
+                bookingId: "B-1",
+                startedAt: Date.now() - 600000, // 10 dk önce
+                completedAt: null,
+            }),
+        });
+        // 2. tx.get(stationRef) = station mevcut
+        mockTxGet.mockResolvedValueOnce({
+            exists: true,
+            data: () => ({
+                totalServiceTimeMin: 30,
+                completedJobsCount: 3,
+                avgServiceTimeMin: 10,
+            }),
+        });
+        mockTxGet.mockResolvedValueOnce({
+            exists: true,
+            data: () => ({}),
+        });
+        const res = makeRes();
+        await completeService(makeReq({
+            queueEntryId: "Q-1",
+            operatorId: "OP-1",
+        }), res);
+        expect(res.status).toHaveBeenCalledWith(200);
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({ message: "Service completed" })
+        );
+        expect(mockTxUpdate).toHaveBeenCalledTimes(1);
+        expect(mockTxSet).toHaveBeenCalledTimes(2);
+    });
+});
