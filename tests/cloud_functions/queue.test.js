@@ -39,7 +39,8 @@ jest.mock("firebase-functions/v2/https", () => ({
 }), { virtual: true });
 
 jest.mock("cors", () => jest.fn(() => jest.fn()), { virtual: true });
-const { enterQueue, startService, completeService } = require("../../functions/src/queue");
+const e = require("cors");
+const { enterQueue, startService, completeService, cancelQueueEntry} = require("../../functions/src/queue");
 function makeReq(body){
     return {body};
 }
@@ -378,5 +379,71 @@ describe("completeService",()=>{
         );
         expect(mockTxUpdate).toHaveBeenCalledTimes(1);
         expect(mockTxSet).toHaveBeenCalledTimes(2);
+    });
+});
+
+describe("cancelQueueEntry",()=>{
+    beforeEach(() => {
+        jest.clearAllMocks();
+    });
+    test("400 - queueEntryId eksik",async()=>{
+        const res = makeRes();
+        await cancelQueueEntry(makeReq({}),res);
+        expect(res.status).toHaveBeenCalledWith(400);
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({error: expect.stringContaining("required")})
+        );
+    });
+    test("404 - entry bulunamadı",async()=>{
+        mockTxGet.mockResolvedValueOnce({ exists: false });
+        const res = makeRes();
+        await cancelQueueEntry(makeReq({ queueEntryId: "Q-1000" }), res);
+        expect(res.status).toHaveBeenCalledWith(404);
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({ code: "ENTRY_NOT_FOUND" })
+        );
+    });
+    test("409 - sadece Queued entry iptal edilebilir",async()=>{
+        mockTxGet.mockResolvedValueOnce({
+            exists: true,
+            data: () => ({
+                queueStatus: "InProgress",
+            }),
+        });
+        const res = makeRes();
+        await cancelQueueEntry(makeReq({ queueEntryId: "Q-1" }), res);
+        expect(res.status).toHaveBeenCalledWith(409);
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({ code: "ONLY_QUEUED_CAN_BE_CANCELLED" })
+        );
+    });
+    test("200 - başarılı iptal",async()=>{
+        mockTxGet.mockResolvedValueOnce({
+            exists: true,
+            data: () => ({
+                queueStatus: "Queued",
+                bookingId: "B-1",
+            }),
+        });
+        const res = makeRes();
+        await cancelQueueEntry(makeReq({
+            queueEntryId: "Q-1",
+            operatorId: "OP-1",
+        }), res);
+        expect(mockTxUpdate).toHaveBeenCalledTimes(2);
+        expect(mockTxUpdate).toHaveBeenNthCalledWith(1,
+            expect.anything(),
+            expect.objectContaining({
+                queueStatus: "Cancelled",
+                cancelledBy: "OP-1",
+            })
+        );
+        expect(mockTxUpdate).toHaveBeenNthCalledWith(2,
+            expect.anything(),
+            expect.objectContaining({
+                bookingStatus: "Cancelled",
+                queueStatus: "Cancelled",
+            })
+        );
     });
 });

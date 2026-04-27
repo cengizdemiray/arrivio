@@ -370,6 +370,20 @@ exports.cancelQueueEntry = onRequest(
                     cancelledBy: operatorId ?? null,
                     cancellationReason: reason ?? "NoShow",
                 });
+
+                const bookingId = entry.bookingId;
+                if (bookingId) {
+                    const bookingRef = db.collection("Booking").doc(bookingId);
+                    tx.update(
+                        bookingRef,
+                        {
+                            bookingStatus: "Cancelled",
+                            queueStatus: "Cancelled",
+                            cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
+                            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                        },
+                    );
+                }
             });
         } catch (err) {
             console.error("cancelQueueEntry error:", err);
@@ -377,7 +391,7 @@ exports.cancelQueueEntry = onRequest(
             const code = String(err?.message || "UNKNOWN");
             const map = {
                 ENTRY_NOT_FOUND: [404, "Queue entry not found"],
-                NOT_QUEUED: [409, "Only Queued entries can be cancelled"],
+                ONLY_QUEUED_CAN_BE_CANCELLED: [409, "Only Queued entries can be cancelled"],
             };
             if (map[code]) {
                 const [status, msg] = map[code];
