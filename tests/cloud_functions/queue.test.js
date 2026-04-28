@@ -554,3 +554,68 @@ describe("getActiveStations",()=>{
         expect(res.json).toHaveBeenCalledWith({ stations: [] });
     });
 })
+describe("getStationQueue",()=>{
+    beforeEach(() => {
+        jest.clearAllMocks();
+    });
+    test("400 - stationId eksik",async()=>{
+        const res = makeRes();
+        await getStationQueue(makeReq({}),res);
+        expect(res.status).toHaveBeenCalledWith(400);
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({error: expect.stringContaining("required")})
+        );
+    });
+    test("200 - kuyruk listesi döner",async()=>{
+        mockGet.mockResolvedValueOnce({
+            docs: [
+                {
+                    id: "Q-1",
+                    data: () => ({
+                        stationId: "ST-1",
+                        carrierId: "C-1",
+                        slotKey: "10:00",
+                        queueStatus: "Queued",
+                        queuedAt: 1000000,
+                    }),
+                },
+                {
+                    id: "Q-2",
+                    data: () => ({
+                        stationId: "ST-1",
+                        carrierId: "C-2",
+                        slotKey: "10:15",
+                        queueStatus: "InProgress",
+                        queuedAt: 1100000,
+                        startedAt: 1200000,
+                    }),
+                },
+            ],
+        });
+        const res = makeRes();
+        await getStationQueue(makeReq({ stationId: "ST-1" }), res);
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({
+                stationId: "ST-1",
+                inServiceCount: 1, // 1 tane InProgress
+                queue: expect.arrayContaining([
+                    expect.objectContaining({ id: "Q-1", queueStatus: "Queued" }),
+                    expect.objectContaining({ id: "Q-2", queueStatus: "InProgress" }),
+                ]),
+            })
+        );
+    });
+    test("200 - boş kuyruk",async()=>{
+        mockGet.mockResolvedValueOnce({ docs: [] });
+        const res = makeRes();
+        await getStationQueue(makeReq({ stationId: "ST-1" }), res);
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({
+                stationId: "ST-1",
+                queue: [],
+                inServiceCount: 0,
+            })
+        );
+    });
+    
+})
