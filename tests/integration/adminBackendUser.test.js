@@ -18,6 +18,7 @@ const {
     validateStationInput,
     generateStationId,
     buildFacilityUpdate,
+    validateStationRemoval,
 } = require("../../admin/src/services/adminServices");
 
 /**
@@ -164,5 +165,50 @@ describe("Carrier Block/Unblock Testleri",()=>{
         expect(updatedSnap.data().BlockReason).toBe("");
         expect(updatedSnap.data().BlockMessage).toBe("");
         expect(updatedSnap.data().BlockUntil).toBe("");
+    });
+});
+describe("Add/Remove Station Tests",()=>{
+    test("Adding Station",async()=>{
+        const validation = validateStationInput("33.35","35.18","Alpha İstasyon","active");
+        expect(validation.valid).toBe(true);
+        const stationId = generateStationId(1);
+        expect(stationId).toBe("ST-1");
+
+        const stationDoc = buildStationDocument({
+            longitude: validation.longitude,
+            latitude: validation.latitude,
+            status: validation.status,
+            stationId: stationId,
+            stationName: validation.stationName,
+            contactName: "Cengiz Demiray",
+            phone: "05052203805",
+            createdByUid: "admin-uid-123",
+        });
+        await db.collection("Station").doc("station-1").set(stationDoc);
+        const snap = await db.collection("Station").doc("station-1").get();
+        expect(snap.exists).toBe(true);
+        expect(snap.data().StationId).toBe("ST-1");
+        expect(snap.data().longitude).toBe(33.35);
+        expect(snap.data().latitude).toBe(35.18);
+        expect(snap.data().Name).toBe("Alpha İstasyon");
+        expect(snap.data().status).toBe("active");
+    });
+    test("Removing Station",async()=>{
+        await db.collection("Station").doc("st-a").set({
+            stationId: "ST-1", Name: "İstasyon A", status: "active",
+        });
+        await db.collection("Station").doc("st-b").set({
+            stationId: "ST-2", Name: "İstasyon B", status: "active",
+        });
+        const removal = validateStationRemoval(["st-a"]);
+        expect(removal.valid).toBe(true);
+        for(const id of removal.ids){
+            await db.collection("Station").doc(id).delete();
+        }
+        const deletedSnap = await db.collection("Station").doc("st-a").get();
+        expect(deletedSnap.exists).toBe(false);
+
+        const deletedSnap2 = await db.collection("Station").doc("st-b").get();
+        expect(deletedSnap2.exists).toBe(true);
     });
 });

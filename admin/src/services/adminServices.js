@@ -281,7 +281,6 @@ export function buildStationDocument({ longitude, latitude, status, stationId, s
     longitude,
     latitude,
     status,
-    stationId,
     StationId: stationId,
     Name: stationName || '',
     contactName: contactName || '',
