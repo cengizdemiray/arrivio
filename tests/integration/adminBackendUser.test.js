@@ -212,3 +212,33 @@ describe("Add/Remove Station Tests",()=>{
         expect(deletedSnap2.exists).toBe(true);
     });
 });
+
+describe("Facility Update Tests",()=>{
+    test("Valid Facility update",async()=>{
+        await db.collection("Facility").doc("fac-1").set({
+            Name: "Eski İsim",
+            Adress: "Eski Adres",
+            Status: "Active",
+            contactName: "",
+            phone: "",
+        });
+        const update = buildFacilityUpdate({
+            name: "Esenler Lojistik Merkezi",
+            address: "Yenimahalle Cad. No: 5 / Esenler, Istanbul",
+            status: "Active",
+            contactName: "Cengiz Demiray",
+            phone: "05052203805",
+            weekdayStart: "08:00",
+            weekdayEnd: "18:00",
+            weekendStart: "09:00",
+            weekendEnd: "14:00",
+        });
+        await db.collection("Facility").doc("fac-1").update(update);
+        const snap = await db.collection("Facility").doc("fac-1").get();
+        expect(snap.data().Name).toBe("Esenler Lojistik Merkezi");
+        expect(snap.data().Adress).toBe("Yenimahalle Cad. No: 5 / Esenler, Istanbul");
+        expect(snap.data().contactName).toBe("Cengiz Demiray");
+        expect(snap.data().weekdayStart).toBe("08:00");
+        expect(snap.data().weekendEnd).toBe("14:00");
+    });
+});
