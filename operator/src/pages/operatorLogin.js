@@ -1,6 +1,7 @@
 // js/pages/operatorLogin.js
-import { auth } from '../sevices/firebaseClient.js';
+import { auth, db } from '../sevices/firebaseClient.js';
 import { signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
+import { doc, getDoc, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 import { validateLoginInput, buildOperatorSession } from '../services/operatorServices.js';
 
 const form = document.getElementById('loginForm');
@@ -42,6 +43,37 @@ form?.addEventListener('submit', async (e) => {
   }
 
   const user = auth.currentUser;
+  const uid = user.uid;
+
+  // 1) Operator koleksiyonunda var mı kontrol et
+  const operatorSnap = await getDoc(doc(db, "Operator", uid));
+
+  if (!operatorSnap.exists()) {
+    // 2) operatorRequests'te başvurusu var mı kontrol et
+    const reqQuery = query(
+      collection(db, "operatorRequests"),
+      where("email", "==", validation.email)
+    );
+    const reqSnap = await getDocs(reqQuery);
+
+    if (!reqSnap.empty) {
+      const reqData = reqSnap.docs[0].data();
+      const status = (reqData.status || "").toLowerCase();
+
+      if (status === "rejected") {
+        showError("Your application has been rejected. You cannot access the system.");
+        return;
+      }
+      if (status === "pending") {
+        pendingBox.hidden = false;
+        return;
+      }
+    }
+
+    showError("You are not registered as an operator.");
+    return;
+  }
+
   const session = buildOperatorSession(user, validation.email);
 
   localStorage.setItem('operator_session', 'true');

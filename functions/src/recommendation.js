@@ -1,6 +1,7 @@
 const cors = require('cors')({ origin: true });
 const { onRequest } = require('firebase-functions/v2/https');
 const admin = require('firebase-admin');
+const { Timestamp } = require("firebase-admin/firestore");
 if (!admin.apps.length) {
     admin.initializeApp();
 }
@@ -32,7 +33,7 @@ exports.getStationsMM1ForSlotStart = onRequest(
 
             const slotKey = slotKeyFromStart(slotStartDate);
 
-            const historyStart = admin.firestore.Timestamp.fromMillis(slotStartDate.getTime() - HISTORY_DAYS * 24 * 60 * 60 * 1000);
+            const historyStart = Timestamp.fromMillis(slotStartDate.getTime() - HISTORY_DAYS * 24 * 60 * 60 * 1000);
 
             const stationSnap = await db.collection("Station")
                 .where("status", "==", "active").get();

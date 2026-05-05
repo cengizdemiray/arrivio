@@ -1,6 +1,7 @@
 const cors = require('cors')({ origin: true });
 const { onRequest } = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
+const { Timestamp, FieldValue } = require("firebase-admin/firestore");
 if (!admin.apps.length) {
     admin.initializeApp();
 }
@@ -44,6 +45,12 @@ exports.enterQueue = onRequest(
                 return res.status(400).json({ error: "carrierId, stationId, slotStart, slotEnd are required" });
             }
 
+            // Carrier block kontrolü
+            const carrierSnap = await db.collection("Carrier").doc(carrierId).get();
+            if (carrierSnap.exists && carrierSnap.data().Status === "Blocked") {
+                return res.status(403).json({ error: "Carrier is blocked", code: "CARRIER_BLOCKED" });
+            }
+
             // Frontend'den gelen ISO tarihleri parse ediyoruz.
             const slotStartDate = parseISO(slotStart);
             const slotEndDate = parseISO(slotEnd);
@@ -57,8 +64,8 @@ exports.enterQueue = onRequest(
 
             // arrivalTime ve queuedAt alanlarını seçilen slota eşit tutuyoruz.
             // Yani server now değil, kullanıcının booking slot zamanı yazılıyor.
-            const arrivalTimestamp = admin.firestore.Timestamp.fromDate(slotStartDate);
-            const queuedTimestamp = admin.firestore.Timestamp.fromDate(slotStartDate);
+            const arrivalTimestamp = Timestamp.fromDate(slotStartDate);
+            const queuedTimestamp = Timestamp.fromDate(slotStartDate);
 
             // Sayaç dokümanları.
             // Bunlar sayesinde id'leri B-1, Q-1 formatında üretiyoruz.
@@ -95,7 +102,7 @@ exports.enterQueue = onRequest(
                     arrivalTime: arrivalTimestamp,
                     bookingStatus: "Active",
                     carrierId,
-                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                    createdAt: FieldValue.serverTimestamp(),
                     queueStatus: "Queued",
                     queuedAt: queuedTimestamp,
                     slotEnd: slotEndLabel,
@@ -112,11 +119,11 @@ exports.enterQueue = onRequest(
                     stationId,
                     slotKey,
                     slotEnd: slotEndLabel,
-                    slotStartAt: admin.firestore.Timestamp.fromDate(slotStartDate),
-                    slotEndAt: admin.firestore.Timestamp.fromDate(slotEndDate),
+                    slotStartAt: Timestamp.fromDate(slotStartDate),
+                    slotEndAt: Timestamp.fromDate(slotEndDate),
                     queueStatus: "Queued",
                     queuedAt: queuedTimestamp,
-                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                    createdAt: FieldValue.serverTimestamp(),
                 });
 
                 // Sayaçları güncelliyoruz.
@@ -124,7 +131,7 @@ exports.enterQueue = onRequest(
                     bookingCounterRef,
                     {
                         lastNumber: nextBookingNo,
-                        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                        updatedAt: FieldValue.serverTimestamp(),
                     },
                     { merge: true }
                 );
@@ -133,7 +140,7 @@ exports.enterQueue = onRequest(
                     queueCounterRef,
                     {
                         lastNumber: nextQueueNo,
-                        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                        updatedAt: FieldValue.serverTimestamp(),
                     },
                     { merge: true }
                 );
@@ -165,6 +172,17 @@ exports.startService = onRequest(
                 return res.status(400).json({ error: "queueEntryId is required" });
             }
 
+            // Operator yetki kontrolü
+            if (operatorId) {
+                const opSnap = await db.collection("Operator").doc(operatorId).get();
+                if (!opSnap.exists) {
+                    return res.status(403).json({ error: "Operator not found", code: "OPERATOR_NOT_AUTHORIZED" });
+                }
+                if (opSnap.data().Status !== "Active") {
+                    return res.status(403).json({ error: "Operator is not active", code: "OPERATOR_NOT_ACTIVE" });
+                }
+            }
+
             const entryRef = db.collection("QueueEntry").doc(queueEntryId);
 
             await db.runTransaction(async (tx) => {
@@ -178,7 +196,7 @@ exports.startService = onRequest(
                 // 1) Sadece Queued başlatılabilir
                 if (normStatus(entry.queueStatus) !== "Queued") throw new Error("NOT_QUEUED");
 
-                // 2) Aynı station’da InProgress var mı? 
+                // 2) Aynı station’da InProgress var mı?
                 const inProgQ = db
                     .collection("QueueEntry")
                     .where("stationId", "==", stationId)
@@ -199,7 +217,7 @@ exports.startService = onRequest(
 
                 tx.update(entryRef, {
                     queueStatus: "InProgress",
-                    startedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    startedAt: FieldValue.serverTimestamp(),
                     startedBy: operatorId ?? null,
                 });
 
@@ -209,8 +227,8 @@ exports.startService = onRequest(
                         {
                             bookingStatus: "InProgress",
                             queueStatus: "InProgress",
-                            startedAt: admin.firestore.FieldValue.serverTimestamp(),
-                            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                            startedAt: FieldValue.serverTimestamp(),
+                            updatedAt: FieldValue.serverTimestamp(),
                         },
                         { merge: true }
                     );
@@ -248,6 +266,17 @@ exports.completeService = onRequest(
                 return res.status(400).json({ error: "queueEntryId is required" });
             }
 
+            // Operator yetki kontrolü
+            if (operatorId) {
+                const opSnap = await db.collection("Operator").doc(operatorId).get();
+                if (!opSnap.exists) {
+                    return res.status(403).json({ error: "Operator not found", code: "OPERATOR_NOT_AUTHORIZED" });
+                }
+                if (opSnap.data().Status !== "Active") {
+                    return res.status(403).json({ error: "Operator is not active", code: "OPERATOR_NOT_ACTIVE" });
+                }
+            }
+
             const entryRef = db.collection("QueueEntry").doc(queueEntryId);
 
             await db.runTransaction(async (tx) => {
@@ -281,7 +310,7 @@ exports.completeService = onRequest(
                     await tx.get(bookingRef);
                 }
 
-                const completedAt = admin.firestore.Timestamp.now();
+                const completedAt = Timestamp.now();
                 tx.update(entryRef, {
                     queueStatus: "Completed",
                     completedAt,
@@ -319,7 +348,7 @@ exports.completeService = onRequest(
                             bookingStatus: "Completed",
                             queueStatus: "Completed",
                             completedAt,
-                            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                            updatedAt: FieldValue.serverTimestamp(),
                         },
                         { merge: true }
                     );
@@ -357,6 +386,17 @@ exports.cancelQueueEntry = onRequest(
                 return res.status(400).json({ error: "queueEntryId is required" });
             }
 
+            // Operator yetki kontrolü
+            if (operatorId) {
+                const opSnap = await db.collection("Operator").doc(operatorId).get();
+                if (!opSnap.exists) {
+                    return res.status(403).json({ error: "Operator not found", code: "OPERATOR_NOT_AUTHORIZED" });
+                }
+                if (opSnap.data().Status !== "Active") {
+                    return res.status(403).json({ error: "Operator is not active", code: "OPERATOR_NOT_ACTIVE" });
+                }
+            }
+
             const entryRef = db.collection("QueueEntry").doc(queueEntryId);
             await db.runTransaction(async (tx) => {
                 const snap = await tx.get(entryRef);
@@ -366,7 +406,7 @@ exports.cancelQueueEntry = onRequest(
 
                 tx.update(entryRef, {
                     queueStatus: "Cancelled",
-                    cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
+                    cancelledAt: FieldValue.serverTimestamp(),
                     cancelledBy: operatorId ?? null,
                     cancellationReason: reason ?? "NoShow",
                 });
@@ -379,8 +419,8 @@ exports.cancelQueueEntry = onRequest(
                         {
                             bookingStatus: "Cancelled",
                             queueStatus: "Cancelled",
-                            cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
-                            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                            cancelledAt: FieldValue.serverTimestamp(),
+                            updatedAt: FieldValue.serverTimestamp(),
                         },
                     );
                 }
