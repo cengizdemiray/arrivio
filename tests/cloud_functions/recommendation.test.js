@@ -49,11 +49,11 @@ function makeRes(){
     res.json = jest.fn().mockReturnValue(res);
     return res;
 }
-describe("getStationsMM1ForSlotStart",()=>{
+describe("UT-CF-11: getStationsMM1ForSlotStart",()=>{
     beforeEach(()=>{
         jest.clearAllMocks();
     });
-    test("400 - startSlotIso eksik", async()=>{
+    test("400 - missing startSlotIso", async()=>{
         const res = makeRes();
         await getStationsMM1ForSlotStart(makeReq({}), res);
         expect(res.status).toHaveBeenCalledWith(400);
@@ -61,7 +61,7 @@ describe("getStationsMM1ForSlotStart",()=>{
             expect.objectContaining({ error: expect.stringContaining("required") })
         );
     });
-    test("500 - geçersiz tarih formatı", async () => {
+    test("500 - invalid date format", async () => {
         const res = makeRes();
         await getStationsMM1ForSlotStart(makeReq({
             startSlotIso: "invalid",
@@ -70,7 +70,7 @@ describe("getStationsMM1ForSlotStart",()=>{
 
         expect(res.status).toHaveBeenCalledWith(500);
     });
-    test("200 - tek istasyon, stabil kuyruk", async()=>{
+    test("200 - one station, stable queue", async()=>{
         mockGet.mockResolvedValueOnce({
             docs: [{
                 id: "ST-1",
@@ -101,7 +101,7 @@ describe("getStationsMM1ForSlotStart",()=>{
             })
         );
     });
-    test("200 - en iyi istasyon seçimi",async()=>{
+    test("200 - best station selection",async()=>{
         mockGet.mockResolvedValueOnce({
             docs: [
                 {
@@ -139,7 +139,7 @@ describe("getStationsMM1ForSlotStart",()=>{
             })
         );
     });
-    test("200 - geçmiş veri yok, lambda = 0", async () => {
+    test("200 - no past data, lambda = 0", async () => {
         mockGet.mockResolvedValueOnce({
             docs: [{
                 id: "ST-1",
@@ -196,7 +196,7 @@ describe("getStationsMM1ForSlotStart",()=>{
             })
         );
     });
-    test("200 - aktif istasyon yok",async()=>{
+    test("200 - no active stations",async()=>{
         mockGet.mockResolvedValueOnce({ docs: [] });
         const res = makeRes();
         await getStationsMM1ForSlotStart(makeReq({

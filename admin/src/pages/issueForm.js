@@ -149,7 +149,7 @@ export function initIssueForm(root, options = {}) {
           </div>
           <div class="issue-card-desc">${escapeHtml(i.Description)}</div>
           <div class="issue-card-meta">
-            <span>Facility: ${escapeHtml(i.Facility || '-')}</span>
+            <span></span>
             <span class="issue-status status-${i.Status?.toLowerCase()}">${escapeHtml(i.Status)}</span>
           </div>
           ${showAction ? `

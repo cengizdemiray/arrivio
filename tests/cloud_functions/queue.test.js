@@ -4,7 +4,8 @@ const mockTxUpdate = jest.fn();
 const mockRunTransaction = jest.fn((cb) =>
   cb({ get: mockTxGet, set: mockTxSet, update: mockTxUpdate })
 );
-const mockDoc = jest.fn((id) => ({ _id: id }));
+const mockDocGet = jest.fn();
+const mockDoc = jest.fn((id) => ({ _id: id, get: mockDocGet }));
 const mockGet = jest.fn();
 const mockOrderBy = jest.fn(() => ({ limit: mockLimit, get: mockGet }));
 const mockLimit = jest.fn(() => ({ get: mockGet, _type: "query" }));
@@ -62,16 +63,22 @@ function makeRes(){
     res.json = jest.fn().mockReturnValue(res);
     return res;
 }
+
 /** Testler */
-describe("enterQueue",()=>{
+describe("UT-CF-05: enterQueue",()=>{
     beforeEach(() => {
         jest.clearAllMocks();
+        // Carrier doc mock - default: exists but not blocked
+        mockDocGet.mockResolvedValue({
+            exists: true,
+            data: () => ({ Status: "Active" }),
+        });
         mockTxGet.mockResolvedValue({
         exists: true,
         data: () => ({ lastNumber: 0 }),
         });
     });
-    test("400 - body tamamen boş",async()=>{
+    test("400 - fully empty body",async()=>{
         const res = makeRes();
         await enterQueue(makeReq({}),res);
         expect(res.status).toHaveBeenCalledWith(400);
@@ -79,7 +86,7 @@ describe("enterQueue",()=>{
             expect.objectContaining({error: expect.stringContaining("required")})
         );
     });
-    test("400 - carrierId eksik",async()=>{
+    test("400 - missing carrierId",async()=>{
         const res = makeRes();
         await enterQueue(makeReq({
             stationId: "ST-1",
@@ -91,7 +98,7 @@ describe("enterQueue",()=>{
             expect.objectContaining({error: expect.stringContaining("required")})
         );
     });
-    test("400 - stationId eksik", async()=>{
+    test("400 - missing stationId", async()=>{
         const res = makeRes();
         await enterQueue(makeReq({
             carrierId: "C-1",
@@ -103,7 +110,7 @@ describe("enterQueue",()=>{
             expect.objectContaining({error: expect.stringContaining("required")})
         );
     });
-    test("400 - geçersiz tarih formatı",async()=>{
+    test("400 - invalid date format",async()=>{
         const res = makeRes();
         await enterQueue(makeReq({
             carrierId: "C-1",
@@ -116,7 +123,7 @@ describe("enterQueue",()=>{
             expect.objectContaining({error: expect.stringContaining("Invalid")})
         );
     });
-    test("200 - başarılı booking + queueEntry oluşturma",async()=>{
+    test("200 - successful booking + queueEntry creation",async()=>{
         const res = makeRes();
         await enterQueue(makeReq({
             carrierId: "C-1",
@@ -132,7 +139,7 @@ describe("enterQueue",()=>{
             })
         );
     });
-    test("200 - counter mevcut değerden artıyor",async()=>{
+    test("200 - counter increments from the current value",async()=>{
         mockTxGet.mockResolvedValue({
             exists: true,
             data: () => ({ lastNumber: 5 }),
@@ -152,7 +159,7 @@ describe("enterQueue",()=>{
             })
         );
     });
-    test("200 - Transaction içinde 4 set çağrısı yapıldı",async()=>{
+    test("200 - Four set call made in the transaction",async()=>{
         const res = makeRes();
         await enterQueue(makeReq({
             carrierId: "C-1",
@@ -163,7 +170,7 @@ describe("enterQueue",()=>{
         expect(mockRunTransaction).toHaveBeenCalledTimes(1);
         expect(mockTxSet).toHaveBeenCalledTimes(4);
     });
-    test("200 - counter dökümanı yoksa 0'dan başla",async()=>{
+    test("200 - counter document not found, start from 0",async()=>{
         mockTxGet.mockResolvedValue({
             exists: false,
             data: () => null,
@@ -184,11 +191,16 @@ describe("enterQueue",()=>{
     });
 });
 
-describe("startService",()=>{
+describe("UT-CF-06: startService",()=>{
     beforeEach(()=>{
         jest.clearAllMocks();
+        // Operator doc mock - default: exists and Active
+        mockDocGet.mockResolvedValue({
+            exists: true,
+            data: () => ({ Status: "Active" }),
+        });
     });
-    test("400 - queueEntryId eksik", async()=>{
+    test("400 - missing queueEntryId", async()=>{
         const res = makeRes();
         await startService(makeReq({}), res);
         expect(res.status).toHaveBeenCalledWith(400);
@@ -196,7 +208,7 @@ describe("startService",()=>{
             expect.objectContaining({error: expect.stringContaining("required")})
         );
     });
-    test("404 - entry bulunamadı",async()=>{
+    test("404 - entry not found",async()=>{
         mockTxGet.mockResolvedValueOnce({
             exists: false,
         });
@@ -204,7 +216,7 @@ describe("startService",()=>{
         await startService(makeReq({queueEntryId: "Q-1000"}),res);
         expect(res.status).toHaveBeenCalledWith(404);
     });
-    test("409 - entry status Queued olmalı",async()=>{
+    test("409 - entry status should be Queued",async()=>{
         mockTxGet.mockResolvedValueOnce({
             exists: true,
             data: () => ({
@@ -219,7 +231,7 @@ describe("startService",()=>{
             expect.objectContaining({ code: "NOT_QUEUED" })
         );
     });
-    test("409 - station şuan servis veriyor",async()=>{
+    test("409 - station is currently unavailable",async()=>{
         mockTxGet.mockResolvedValueOnce({
             exists: true,
             data: () => ({
@@ -237,7 +249,7 @@ describe("startService",()=>{
             expect.objectContaining({ code: "ALREADY_IN_PROGRESS" })
         );
     });
-    test("400 - stationId bulunamadı",async()=>{
+    test("400 - missing stationId",async()=>{
         mockTxGet.mockResolvedValueOnce({
             exists: true,
             data: () => ({
@@ -252,7 +264,7 @@ describe("startService",()=>{
             expect.objectContaining({ code: "STATION_ID_MISSING" })
         );
     });
-    test("200 - başarılı servis başlatma",async()=>{
+    test("200 - successful service start",async()=>{
         // 1. tx.get(entryRef) = Queued entry
         mockTxGet.mockResolvedValueOnce({
             exists: true,
@@ -285,11 +297,16 @@ describe("startService",()=>{
     });
 });
 
-describe("completeService",()=>{
+describe("UT-CF-07: completeService",()=>{
     beforeEach(() => {
         jest.clearAllMocks();
+        // Operator doc mock - default: exists and Active
+        mockDocGet.mockResolvedValue({
+            exists: true,
+            data: () => ({ Status: "Active" }),
+        });
     });
-    test("400 queueEntryId eksik",async()=>{
+    test("400 - missing queueEntryId",async()=>{
         const res = makeRes();
         await completeService(makeReq({}),res);
         expect(res.status).toHaveBeenCalledWith(400);
@@ -297,7 +314,7 @@ describe("completeService",()=>{
             expect.objectContaining({error: expect.stringContaining("required")})
         );
     });
-    test("404 - entry bulunamadı",async()=>{
+    test("404 - entry not found",async()=>{
         mockTxGet.mockResolvedValueOnce({ exists: false });
         const res = makeRes();
         await completeService(makeReq({ queueEntryId: "Q-1000" }), res);
@@ -306,7 +323,7 @@ describe("completeService",()=>{
             expect.objectContaining({ code: "ENTRY_NOT_FOUND" })
         );
     });
-    test("409 - sadece Inprogress olan entry tamamlanabilir",async()=>{
+    test("409 - only InProgress entries can be completed",async()=>{
         mockTxGet.mockResolvedValueOnce({
             exists: true,
             data: () => ({
@@ -321,7 +338,7 @@ describe("completeService",()=>{
             expect.objectContaining({ code: "NOT_IN_PROGRESS" })
         );
     });
-    test("409 - startedAt null olamaz",async()=>{
+    test("409 - startedAt cannot be null",async()=>{
         mockTxGet.mockResolvedValueOnce({
             exists: true,
             data: () => ({
@@ -337,14 +354,14 @@ describe("completeService",()=>{
             expect.objectContaining({ code: "MISSING_STARTED_AT" })
         );
     });
-    test("409 - zaten completed",async()=>{
+    test("409 - already completed",async()=>{
         mockTxGet.mockResolvedValueOnce({
             exists: true,
             data: () => ({
                 queueStatus: "InProgress",
                 stationId: "ST-1",
                 startedAt: 1000000,
-                completedAt: 2000000,  // zaten var
+                completedAt: 2000000,  // already exists
             }),
         });
         const res = makeRes();
@@ -354,7 +371,7 @@ describe("completeService",()=>{
             expect.objectContaining({ code: "ALREADY_COMPLETED" })
         );
     });
-    test("200 - başarılı servis tamamlama",async()=>{
+    test("200 - successful service completion",async()=>{
         // 1. tx.get(entryRef) = InProgress entry
         mockTxGet.mockResolvedValueOnce({
             exists: true,
@@ -393,11 +410,16 @@ describe("completeService",()=>{
     });
 });
 
-describe("cancelQueueEntry",()=>{
+describe("UT-CF-08: cancelQueueEntry",()=>{
     beforeEach(() => {
         jest.clearAllMocks();
+        // Operator doc mock - default: exists and Active
+        mockDocGet.mockResolvedValue({
+            exists: true,
+            data: () => ({ Status: "Active" }),
+        });
     });
-    test("400 - queueEntryId eksik",async()=>{
+    test("400 - missing queueEntryId",async()=>{
         const res = makeRes();
         await cancelQueueEntry(makeReq({}),res);
         expect(res.status).toHaveBeenCalledWith(400);
@@ -405,7 +427,7 @@ describe("cancelQueueEntry",()=>{
             expect.objectContaining({error: expect.stringContaining("required")})
         );
     });
-    test("404 - entry bulunamadı",async()=>{
+    test("404 - entry not found",async()=>{
         mockTxGet.mockResolvedValueOnce({ exists: false });
         const res = makeRes();
         await cancelQueueEntry(makeReq({ queueEntryId: "Q-1000" }), res);
@@ -414,7 +436,7 @@ describe("cancelQueueEntry",()=>{
             expect.objectContaining({ code: "ENTRY_NOT_FOUND" })
         );
     });
-    test("409 - sadece Queued entry iptal edilebilir",async()=>{
+    test("409 - only Queued entries can be cancelled",async()=>{
         mockTxGet.mockResolvedValueOnce({
             exists: true,
             data: () => ({
@@ -428,7 +450,7 @@ describe("cancelQueueEntry",()=>{
             expect.objectContaining({ code: "ONLY_QUEUED_CAN_BE_CANCELLED" })
         );
     });
-    test("200 - başarılı iptal",async()=>{
+    test("200 - successful cancellation",async()=>{
         mockTxGet.mockResolvedValueOnce({
             exists: true,
             data: () => ({
@@ -458,11 +480,11 @@ describe("cancelQueueEntry",()=>{
         );
     });
 });
-describe("getActiveStations",()=>{
+describe("UT-CF-09: getActiveStations",()=>{
     beforeEach(() => {
         jest.clearAllMocks();
     });
-    test("200 - aktif istasyonları döner",async()=>{
+    test("200 - returns active stations",async()=>{
         mockGet.mockResolvedValueOnce({
             docs: [
                 {
@@ -545,7 +567,7 @@ describe("getActiveStations",()=>{
             })
         );
     });
-    test("200 - boş liste (aktif istasyon yok)", async () => {
+    test("200 - empty list (no active stations)", async () => {
         mockGet.mockResolvedValueOnce({ docs: [] });
 
         const res = makeRes();
@@ -554,11 +576,11 @@ describe("getActiveStations",()=>{
         expect(res.json).toHaveBeenCalledWith({ stations: [] });
     });
 })
-describe("getStationQueue",()=>{
+describe("UT-CF-10: getStationQueue",()=>{
     beforeEach(() => {
         jest.clearAllMocks();
     });
-    test("400 - stationId eksik",async()=>{
+    test("400 - missing stationId",async()=>{
         const res = makeRes();
         await getStationQueue(makeReq({}),res);
         expect(res.status).toHaveBeenCalledWith(400);
@@ -566,7 +588,7 @@ describe("getStationQueue",()=>{
             expect.objectContaining({error: expect.stringContaining("required")})
         );
     });
-    test("200 - kuyruk listesi döner",async()=>{
+    test("200 - returns queue list",async()=>{
         mockGet.mockResolvedValueOnce({
             docs: [
                 {
@@ -605,7 +627,7 @@ describe("getStationQueue",()=>{
             })
         );
     });
-    test("200 - boş kuyruk",async()=>{
+    test("200 - empty queue",async()=>{
         mockGet.mockResolvedValueOnce({ docs: [] });
         const res = makeRes();
         await getStationQueue(makeReq({ stationId: "ST-1" }), res);

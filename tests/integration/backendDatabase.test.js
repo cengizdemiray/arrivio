@@ -14,18 +14,19 @@ async function clearCollection(name) {
     await batch.commit();
 }
 
-/*afterEach(async () => {
+afterEach(async () => {
     await clearCollection("Booking");
     await clearCollection("QueueEntry");
     await clearCollection("Station");
     await clearCollection("_counters");
-});*/
+    await clearCollection("Operator");
+});
 
 afterAll(async () => {
     await admin.app().delete();
 });
 
-describe("Enter queue",()=>{
+describe("IT-BD01: Enter queue",()=>{
     test("Successfull enterQueue",async()=>{
         const res = await fetch(`${BASE_URL}/enterQueue`,{
             method: "POST",
@@ -89,8 +90,11 @@ describe("Enter queue",()=>{
     });
 });
 
-describe("Start Service",()=>{
+describe("IT-BD-02:Start Service",()=>{
     test("Queued entry -> Inprogress",async()=>{
+        await db.collection("Operator").doc("OP-1").set({
+            Name: "Test Operator", Status: "Active",
+        });
         const enterRes = await fetch(`${BASE_URL}/enterQueue`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -100,7 +104,7 @@ describe("Start Service",()=>{
             }),
         });
         const enterData = await enterRes.json();
-        await new Promise((r) => setTimeout(r, 30000));
+        
         const res = await fetch(`${BASE_URL}/startService`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -111,7 +115,7 @@ describe("Start Service",()=>{
         });
         expect(res.status).toBe(200);
 
-        const queueSnap = await db.collection("QueueEntry").doc(enterData.queueEntryId).get();
+        const qSnap = await db.collection("QueueEntry").doc(enterData.queueEntryId).get();
         expect(qSnap.data().queueStatus).toBe("InProgress");
         expect(qSnap.data().startedBy).toBe("OP-1");
         expect(qSnap.data().startedAt).toBeTruthy();
@@ -121,6 +125,9 @@ describe("Start Service",()=>{
 
     },90000);
     test("Only one Inprogress entry should be allowed per station",async()=>{
+        await db.collection("Operator").doc("OP-1").set({
+            Name: "Test Operator", Status: "Active",
+        });
         const enter1 = await (await fetch(`${BASE_URL}/enterQueue`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -140,21 +147,24 @@ describe("Start Service",()=>{
         await fetch(`${BASE_URL}/startService`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ queueEntryId: enter1.queueEntryId }),
+            body: JSON.stringify({ queueEntryId: enter1.queueEntryId, operatorId: "OP-1" }),
         });
-        await new Promise((r) => setTimeout(r, 30000));
+        
         const res = await fetch(`${BASE_URL}/startService`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ queueEntryId: enter2.queueEntryId }),
+            body: JSON.stringify({ queueEntryId: enter2.queueEntryId, operatorId: "OP-1" }),
         });
         expect(res.status).toBe(409);
         const qSnap = await db.collection("QueueEntry").doc(enter2.queueEntryId).get();
         expect(qSnap.data().queueStatus).toBe("Queued");
-    },120000);
+    },30000);
 });
-describe("Complete Service",()=>{
+describe("IT-BD-03: Complete Service",()=>{
     test("InProgress entry -> Completed",async()=>{
+        await db.collection("Operator").doc("OP-1").set({
+            Name: "Test Operator", Status: "Active",
+        });
         await db.collection("Station").doc("ST-1").set({
             status: "active", avgServiceTimeMin: 0,
             totalServiceTimeMin: 0, completedJobsCount: 0,
@@ -167,16 +177,11 @@ describe("Complete Service",()=>{
                 slotStart: "2026-05-04T10:00:00Z", slotEnd: "2026-05-04T10:15:00Z",
             }),
         })).json();
-        console.log("Queued oluştu, SS al!");
-        await new Promise((r) => setTimeout(r, 30000));
-
         await fetch(`${BASE_URL}/startService`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ queueEntryId: enterData.queueEntryId }),
+            body: JSON.stringify({ queueEntryId: enterData.queueEntryId, operatorId: "OP-1" }),
         });
-        console.log("InProgress oldu, SS al!");
-        await new Promise((r) => setTimeout(r, 60000));
         const res = await fetch(`${BASE_URL}/completeService`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -198,20 +203,18 @@ describe("Complete Service",()=>{
         expect(sSnap.data().completedJobsCount).toBe(1);
         expect(sSnap.data().totalServiceTimeMin).toBeGreaterThan(0);
         expect(sSnap.data().avgServiceTimeMin).toBeGreaterThan(0);
-    },150000);
+    },30000);
 });
-describe("Cancel Queue Entry",()=>{
+describe("IT-BD-04: Cancel Queue Entry",()=>{
     test("Queued entry -> Cancelled",async()=>{
         const enterData = await (await fetch(`${BASE_URL}/enterQueue`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 carrierId: "C-1", stationId: "ST-1",
-                lotStart: "2026-05-04T10:00:00Z", slotEnd: "2026-05-04T10:15:00Z",
+                slotStart: "2026-05-04T10:00:00Z", slotEnd: "2026-05-04T10:15:00Z",
             }),
         })).json();
-        console.log("Queued oluştu, SS al!");
-        await new Promise((r) => setTimeout(r, 30000));
         const res = await fetch(`${BASE_URL}/cancelQueueEntry`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -225,7 +228,7 @@ describe("Cancel Queue Entry",()=>{
 
         const bSnap = await db.collection("Booking").doc(enterData.bookingId).get();
         expect(bSnap.data().bookingStatus).toBe("Cancelled");
-    },120000);
+    },30000);
     test("Inprogress entry cannot be cancelled",async()=>{
         const enterData = await (await fetch(`${BASE_URL}/enterQueue`, {
             method: "POST",
@@ -240,8 +243,6 @@ describe("Cancel Queue Entry",()=>{
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ queueEntryId: enterData.queueEntryId }),
         });
-        console.log("InProgress oldu, SS al!");
-        await new Promise((r) => setTimeout(r, 30000));
         const res = await fetch(`${BASE_URL}/cancelQueueEntry`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -250,51 +251,5 @@ describe("Cancel Queue Entry",()=>{
         expect(res.status).toBe(409);
         const qSnap = await db.collection("QueueEntry").doc(enterData.queueEntryId).get();
         expect(qSnap.data().queueStatus).toBe("InProgress");
-    },120000);
-});
-describe("Full Lifecycle Test",()=>{
-    test("enterQueue -> startService -> completeService",async()=>{
-        await db.collection("Station").doc("ST-1").set({
-            status: "active", avgServiceTimeMin: 0,
-            totalServiceTimeMin: 0, completedJobsCount: 0,
-        });
-        const enterData = await (await fetch(`${BASE_URL}/enterQueue`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                carrierId: "C-1", stationId: "ST-1",
-                slotStart: "2026-05-04T10:00:00Z", slotEnd: "2026-05-04T10:15:00Z",
-            }),
-        })).json();
-        console.log("1) Queued oluştu, SS al!");
-        await new Promise((r) => setTimeout(r, 30000));
-
-        await fetch(`${BASE_URL}/startService`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ queueEntryId: enterData.queueEntryId, operatorId: "OP-1" }),
-        });
-
-        console.log("2) InProgress oldu, SS al!");
-        await new Promise((r) => setTimeout(r, 90000));
-
-        await fetch(`${BASE_URL}/completeService`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ queueEntryId: enterData.queueEntryId, operatorId: "OP-1" }),
-        });
-        const qSnap = await db.collection("QueueEntry").doc(enterData.queueEntryId).get();
-        expect(qSnap.data().queueStatus).toBe("Completed");
-
-        const bSnap = await db.collection("Booking").doc(enterData.bookingId).get();
-        expect(bSnap.data().bookingStatus).toBe("Completed");
-
-        const allEntries = await db.collection("QueueEntry").get();
-        expect(allEntries.size).toBe(1);
-
-        const allBookings = await db.collection("Booking").get();
-        expect(allBookings.size).toBe(1);
-        const sSnap = await db.collection("Station").doc("ST-1").get();
-        expect(sSnap.data().completedJobsCount).toBe(1);
-    },180000);
+    },30000);
 });

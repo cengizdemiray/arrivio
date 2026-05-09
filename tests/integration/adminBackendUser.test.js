@@ -30,15 +30,15 @@ async function clearCollection(collectionName) {
     snap.docs.forEach((doc) => batch.delete(doc.ref));
     await batch.commit();
 }
-/*afterEach(async()=>{
+afterEach(async()=>{
     await clearCollection("operatorRequests");
     await clearCollection("Operator");
     await clearCollection("Carrier");
     await clearCollection("Station");
     await clearCollection("Admin");
-});*/
+});
 
-describe("Operator Onaylama/Reddetme Testleri", () => {
+describe("IT-ABU-01", () => {
     test("Pending Request -> Admin Approve -> Operator Created",async()=>{
         const requestData = {
             name: "Ali",
@@ -49,6 +49,7 @@ describe("Operator Onaylama/Reddetme Testleri", () => {
         };
         const reqRef = await db.collection("operatorRequests").add(requestData);
         const normalized = normalizeRequest(reqRef.id,requestData);
+        //await new Promise((r) => setTimeout(r, 30000));
         const approvalDoc = buildApprovalDocument(normalized);
         await db.collection("Operator").doc(reqRef.id).set(approvalDoc);
         await db.collection("operatorRequests").doc(reqRef.id).delete();
@@ -71,6 +72,7 @@ describe("Operator Onaylama/Reddetme Testleri", () => {
             status: "pending",
         };
         const reqRef = await db.collection("operatorRequests").add(requestData);
+        //await new Promise((r) => setTimeout(r, 30000));
         await db.collection("operatorRequests").doc(reqRef.id).delete();
 
         const operatorSnap = await db.collection("Operator").doc(reqRef.id).get();
@@ -97,7 +99,7 @@ describe("Operator Onaylama/Reddetme Testleri", () => {
     });
 });
 
-describe("Carrier Block/Unblock Testleri",()=>{
+describe("IT-ABU-02",()=>{
     test("Carrier Block -> Status Blocked",async()=>{
         const carrierData = {
             Name: "Ahmet",
@@ -107,6 +109,7 @@ describe("Carrier Block/Unblock Testleri",()=>{
             Status: "Active",
         };
         const carrierRef = await db.collection("Carrier").add(carrierData);
+        //await new Promise((r) => setTimeout(r, 30000));
         const blockPayload = buildBlockPayload(
             "Kural ihlali",       // reason
             "Hız limiti aşıldı",  // message
@@ -133,6 +136,7 @@ describe("Carrier Block/Unblock Testleri",()=>{
             BlockMessage: "Araç hasarlı",
             BlockUntil: "2026-07-01",
         });
+        //await new Promise((r) => setTimeout(r, 30000));
         const unblockPayload = buildUnblockPayload("admin-uid-123");
         await db.collection("Carrier").doc(carrierRef.id).update(unblockPayload);
 
@@ -156,6 +160,7 @@ describe("Carrier Block/Unblock Testleri",()=>{
         const snap = await db.collection("Carrier").doc(carrierRef.id).get();
         const carrier = normalizeCarrier(snap.id,snap.data());
         expect(isBlockExpired(carrier)).toBe(true);
+        //await new Promise((r) => setTimeout(r, 30000));
         if(isBlockExpired(carrier)){
             const unblockPayload = buildUnblockPayload("system-auto");
             await db.collection("Carrier").doc(carrierRef.id).update(unblockPayload);
@@ -167,7 +172,7 @@ describe("Carrier Block/Unblock Testleri",()=>{
         expect(updatedSnap.data().BlockUntil).toBe("");
     });
 });
-describe("Add/Remove Station Tests",()=>{
+describe("IT-ABU-03",()=>{
     test("Adding Station",async()=>{
         const validation = validateStationInput("33.35","35.18","Alpha İstasyon","active");
         expect(validation.valid).toBe(true);
@@ -202,6 +207,7 @@ describe("Add/Remove Station Tests",()=>{
         });
         const removal = validateStationRemoval(["st-a"]);
         expect(removal.valid).toBe(true);
+        //await new Promise((r) => setTimeout(r, 30000));
         for(const id of removal.ids){
             await db.collection("Station").doc(id).delete();
         }
@@ -213,17 +219,17 @@ describe("Add/Remove Station Tests",()=>{
     });
 });
 
-describe("Facility Update Tests",()=>{
+describe("IT-ABU-04", () => {
     test("Valid Facility update",async()=>{
         await db.collection("Facility").doc("fac-1").set({
-            Name: "Eski İsim",
-            Adress: "Eski Adres",
+            Name: "Old Name",
+            Adress: "Old Address",
             Status: "Active",
             contactName: "",
             phone: "",
         });
         const update = buildFacilityUpdate({
-            name: "Esenler Lojistik Merkezi",
+            name: "Esenler Logistic Center",
             address: "Yenimahalle Cad. No: 5 / Esenler, Istanbul",
             status: "Active",
             contactName: "Cengiz Demiray",
@@ -233,9 +239,10 @@ describe("Facility Update Tests",()=>{
             weekendStart: "09:00",
             weekendEnd: "14:00",
         });
+        //await new Promise((r) => setTimeout(r, 30000));
         await db.collection("Facility").doc("fac-1").update(update);
         const snap = await db.collection("Facility").doc("fac-1").get();
-        expect(snap.data().Name).toBe("Esenler Lojistik Merkezi");
+        expect(snap.data().Name).toBe("Esenler Logistic Center");
         expect(snap.data().Adress).toBe("Yenimahalle Cad. No: 5 / Esenler, Istanbul");
         expect(snap.data().contactName).toBe("Cengiz Demiray");
         expect(snap.data().weekdayStart).toBe("08:00");

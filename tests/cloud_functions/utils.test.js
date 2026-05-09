@@ -15,13 +15,13 @@ import {
 /**
  * slotKeyFromStart
  */
-describe("slotKeyFromStart",()=>{
-    test("HH:MM formatında slot key döner",()=>{
+describe("UT-CF-01:slotKeyFromStart",()=>{
+    test("returns with the form of HH:MM ",()=>{
         const d = new Date("2026-04-26T10:30:00Z");
         const key = slotKeyFromStart(d,"UTC");
         expect(key).toBe("10:30");
     });
-    test("timezone farkını doğru yansıtır",()=>{
+    test("represents timezone difference properly",()=>{
         const d = new Date("2026-04-26T10:30:00Z");
         const key = slotKeyFromStart(d,"Asia/Famagusta");
         expect(key).toBe("13:30");
@@ -30,12 +30,12 @@ describe("slotKeyFromStart",()=>{
 /**
  * slotIdFromStart
  */
-describe("slotIdFromStart",()=>{
-    test("YYYY-MM-DD_HH:MM formatında ID döner",()=>{
+describe("UT-CF-01: slotIdFromStart",()=>{
+    test("returns ID in YYYY-MM-DD_HH:MM format",()=>{
         const d = new Date("2026-01-15T12:45:00Z");
         expect(slotIdFromStart(d, "UTC")).toBe("2026-01-15_12:45");
     });
-    test("timezone farkını doğru yansıtır",()=>{
+    test("represents timezone difference properly",()=>{
         const d = new Date("2026-04-26T10:30:00Z");
         const id = slotIdFromStart(d,"Asia/Famagusta");
         expect(id).toBe("2026-04-26_13:30");
@@ -44,25 +44,25 @@ describe("slotIdFromStart",()=>{
 /**
  * muPerMinFromAvgServiceTime
  */
-describe("muPerMinFromAvgServiceTime",()=>{
-    test("10 dk ortalama → 0.1/dk", () => {
+describe("UT-CF-02: muPerMinFromAvgServiceTime",()=>{
+    test("10 minutes average → 0.1/minute", () => {
         expect(muPerMinFromAvgServiceTime(10)).toBeCloseTo(0.1);
     });
-    test("0 -> 0 döner",()=>{
+    test("returns zero for zero input",()=>{
         expect(muPerMinFromAvgServiceTime(0)).toBe(0);
     });
-    test("null -> 0 döner",()=>{
+    test("returns 0 for null input",()=>{
         expect(muPerMinFromAvgServiceTime(null)).toBe(0);
     });
-    test("negatif değer -> 0 döner",()=>{
+    test("returns zero for negative values",()=>{
         expect(muPerMinFromAvgServiceTime(-5)).toBe(0);
     })
 });
 /**
  * mm1Wq
  */
-describe("mm1Wq",()=>{
-    test("stabil kuyruk doğru Wq hesaplar",()=>{
+describe("UT-CF-03: mm1Wq",()=>{
+    test("A stable queue calculates the correct Wq",()=>{
         const result = mm1Wq(0.05, 0.1);
         expect(result.stable).toBe(true);
         expect(result.rho).toBeCloseTo(0.5);
@@ -86,28 +86,28 @@ describe("mm1Wq",()=>{
 /**
  * lambdaTargetPerMin
  */
-describe("lambdaTargetPerMin",()=>{
-    test("%80 utilization ile hedef lambda",()=>{
+describe("UT-CF-04: lambdaTargetPerMin",()=>{
+    test("80% utilization with 0.1 service rate",()=>{
         expect(lambdaTargetPerMin(0.8, 0.1)).toBeCloseTo(0.08);
     });
-    test("μ = 0 → 0 döner", () => {
+    test("returns zero for zero input", () => {
         expect(lambdaTargetPerMin(0.8, 0)).toBe(0);
     });
 });
 /**
  * optimalTruckPerSlot
  */
-describe("optimalTruckPerSlot",()=>{
-    test("10dk servis, 15dk slot => 1 kamyon", () => {
+describe("UT-CF-04:optimalTruckPerSlot",()=>{
+    test("10 min service time, 15 min slot => 1 truck", () => {
         expect(optimalTruckPerSlot(10)).toBe(1);
     });
-    test("5dk servis, 15dk slot => 2 kamyon", () => {
+    test("5 min service time, 15 min slot => 2 trucks", () => {
         expect(optimalTruckPerSlot(5)).toBe(2);
     });
-    test("0 servis süresi => 0 döner", () => {
+    test("0 service time => 0 trucks", () => {
         expect(optimalTruckPerSlot(0)).toBe(0);
     });
-    test("çok uzun servis süresi => 0 döner", () => {
+    test("very long service time => 0 trucks", () => {
         expect(optimalTruckPerSlot(100)).toBe(0);
     });
 })

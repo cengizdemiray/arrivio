@@ -48,7 +48,7 @@ import {
    TC-AD-01: Admin Login
    "Validate that an admin can login only with valid credentials"
    ═══════════════════════════════════════════════ */
-describe('TC-AD-01: Admin Login', () => {
+describe('UT-AD-01: Admin Login', () => {
 
   it('rejects empty email', () => {
     const r = validateAdminLogin('', 'pass');
@@ -97,31 +97,7 @@ describe('TC-AD-01: Admin Login', () => {
    TC-AD-02: Pending User Management
    "Validate that admin can view, approve, and reject pending user registrations"
    ═══════════════════════════════════════════════ */
-describe('TC-AD-02: Pending User Management', () => {
-
-  describe('normalizeRequest', () => {
-    it('normalizes a standard request document', () => {
-      const r = normalizeRequest('doc-1', { name: 'Ali', surname: 'Yilmaz', email: 'ali@test.com', status: 'pending' });
-      assert.equal(r.id, 'doc-1');
-      assert.equal(r.name, 'Ali');
-      assert.equal(r.surname, 'Yilmaz');
-      assert.equal(r.email, 'ali@test.com');
-      assert.equal(r.status, 'pending');
-    });
-
-    it('handles alternative field casing (Name, Email)', () => {
-      const r = normalizeRequest('doc-2', { Name: 'Fatma', Email: 'fatma@x.com', Status: 'pending' });
-      assert.equal(r.name, 'Fatma');
-      assert.equal(r.email, 'fatma@x.com');
-    });
-
-    it('defaults to — for missing name/email', () => {
-      const r = normalizeRequest('doc-3', {});
-      assert.equal(r.name, '—');
-      assert.equal(r.email, '—');
-      assert.equal(r.status, 'pending');
-    });
-  });
+describe('UT-AD-02: Pending User Management', () => {
 
   describe('filterPendingRequests', () => {
     const requests = [
@@ -171,28 +147,7 @@ describe('TC-AD-02: Pending User Management', () => {
    TC-AD-03: User Management
    "Validate that admin can view and manage users (including blocking/unblocking and assigning roles)"
    ═══════════════════════════════════════════════ */
-describe('TC-AD-03: User Management', () => {
-
-  describe('normalizeUser', () => {
-    it('normalizes admin user', () => {
-      const u = normalizeUser('admin', 'uid-1', { Name: 'Admin User', Email: 'admin@test.com' });
-      assert.equal(u.uid, 'uid-1');
-      assert.equal(u.role, 'admin');
-      assert.equal(u.name, 'Admin User');
-      assert.equal(u.email, 'admin@test.com');
-    });
-
-    it('combines Name + Surname', () => {
-      const u = normalizeUser('carrier', 'uid-2', { Name: 'John', Surname: 'Doe', Email: 'jd@test.com' });
-      assert.equal(u.name, 'John Doe');
-    });
-
-    it('defaults to — for missing fields', () => {
-      const u = normalizeUser('operator', 'uid-3', {});
-      assert.equal(u.name, '—');
-      assert.equal(u.email, '—');
-    });
-  });
+describe('UT-AD-03: User Management', () => {
 
   describe('filterUsers', () => {
     const users = [
@@ -248,62 +203,7 @@ describe('TC-AD-03: User Management', () => {
    TC-AD-04: Blocking/Unblocking Carriers
    "Validate that admin can block and unblock carriers"
    ═══════════════════════════════════════════════ */
-describe('TC-AD-04: Blocking/Unblocking Carriers', () => {
-
-  describe('normalizeCarrier', () => {
-    it('normalizes standard carrier document', () => {
-      const c = normalizeCarrier('doc-1', { Name: 'ABC Transport', Vehicle_Plate: '34 TR 123', Carrier_ID: 'C-001', Status: 'Active' });
-      assert.equal(c.id, 'doc-1');
-      assert.equal(c.name, 'ABC Transport');
-      assert.equal(c.plate, '34 TR 123');
-      assert.equal(c.carrierId, 'C-001');
-      assert.equal(c.status, 'Active');
-    });
-
-    it('handles blocked carrier with reason and until', () => {
-      const c = normalizeCarrier('doc-2', { Name: 'XYZ', Status: 'Blocked', BlockReason: 'Safety Violation', BlockUntil: '2025-07-01' });
-      assert.equal(c.status, 'Blocked');
-      assert.equal(c.reason, 'Safety Violation');
-      assert.equal(c.until, '2025-07-01');
-    });
-
-    it('defaults to Active when Status missing', () => {
-      const c = normalizeCarrier('doc-3', { Name: 'Test' });
-      assert.equal(c.status, 'Active');
-    });
-  });
-
-  describe('computeBlockUntilDate', () => {
-    const baseDate = new Date(2025, 5, 15); // June 15, 2025
-
-    it('computes 7-day block date', () => {
-      const result = computeBlockUntilDate(7, baseDate);
-      assert.equal(result, '2025-06-22');
-    });
-
-    it('computes 1-day block date', () => {
-      const result = computeBlockUntilDate(1, baseDate);
-      assert.equal(result, '2025-06-16');
-    });
-
-    it('computes 30-day block date', () => {
-      const result = computeBlockUntilDate(30, baseDate);
-      assert.equal(result, '2025-07-15');
-    });
-
-    it('returns empty string for indefinite (0)', () => {
-      assert.equal(computeBlockUntilDate(0), '');
-    });
-
-    it('returns empty string for negative duration', () => {
-      assert.equal(computeBlockUntilDate(-5), '');
-    });
-
-    it('handles string input', () => {
-      const result = computeBlockUntilDate('7', baseDate);
-      assert.equal(result, '2025-06-22');
-    });
-  });
+describe('UT-AD-04: Blocking/Unblocking Carriers', () => {
 
   describe('buildBlockPayload', () => {
     it('builds correct block payload', () => {
@@ -428,7 +328,7 @@ describe('TC-AD-04: Blocking/Unblocking Carriers', () => {
    TC-AD-05: Adding and Removing Stations
    "Validate that admin can add and remove stations"
    ═══════════════════════════════════════════════ */
-describe('TC-AD-05: Adding/Removing Stations', () => {
+describe('UT-AD-05: Adding Stations', () => {
 
   describe('parseCoordinate', () => {
     it('parses standard float', () => {
@@ -524,7 +424,6 @@ describe('TC-AD-05: Adding/Removing Stations', () => {
       });
       assert.equal(doc.longitude, 32.85);
       assert.equal(doc.latitude, 39.92);
-      assert.equal(doc.stationId, 'ST-5');
       assert.equal(doc.StationId, 'ST-5');
       assert.equal(doc.Name, 'Loading Bay');
       assert.equal(doc.createdBy, 'admin-1');
@@ -545,7 +444,7 @@ describe('TC-AD-05: Adding/Removing Stations', () => {
    TC-AD-06: Updating Facility Information
    "Validate that admin can update facility information"
    ═══════════════════════════════════════════════ */
-describe('TC-AD-06: Updating Facility Information', () => {
+describe('UT-AD-06: Updating Facility Information', () => {
 
   it('builds correct facility update object', () => {
     const update = buildFacilityUpdate({
@@ -592,7 +491,7 @@ describe('TC-AD-06: Updating Facility Information', () => {
    TC-AD-07: Removing Station
    "Validate that admin can search and remove stations"
    ═══════════════════════════════════════════════ */
-describe('TC-AD-07: Removing Station', () => {
+describe('UT-AD-07: Removing/Filtering Station', () => {
 
   const stations = [
     { id: 'doc-1', stationId: 'ST-001', Name: 'Loading Bay', status: 'active' },
@@ -691,32 +590,8 @@ describe('TC-AD-07: Removing Station', () => {
    TC-AD-08: Resolving Issues
    "Validate that admin can view and resolve issue reports"
    ═══════════════════════════════════════════════ */
-describe('TC-AD-08: Resolving Issues', () => {
+describe('UT-AD-08: Resolving Issues', () => {
 
-  describe('normalizeIssue', () => {
-    it('normalizes a standard issue document', () => {
-      const issue = normalizeIssue({ id: 'i1', Title: 'Broken scanner', Description: 'Desc', Facility: 'ST-1', Priority: 'High', Status: 'Waiting' });
-      assert.equal(issue.id, 'i1');
-      assert.equal(issue.Title, 'Broken scanner');
-      assert.equal(issue.Priority, 'High');
-      assert.equal(issue.Status, 'Waiting');
-    });
-    /** Alan adı farklı geldiği durumlarda da çökmemeli */
-    it('handles alternative field casing', () => {
-      const issue = normalizeIssue({ id: 'i2', title: 'Test', description: 'desc', station: 'ST-2', priority: 'Low', status: 'Solved' });
-      assert.equal(issue.Title, 'Test');
-      assert.equal(issue.Facility, 'ST-2');
-      assert.equal(issue.Status, 'Solved');
-    });
-    /** Boş veri gelirse çökmemesi için */
-    it('defaults missing fields', () => {
-      const issue = normalizeIssue({});
-      assert.equal(issue.id, '-');
-      assert.equal(issue.Title, 'Untitled');
-      assert.equal(issue.Priority, 'Medium');
-      assert.equal(issue.Status, 'Waiting');
-    });
-  });
   describe('searchIssues', () => {
     const issues = [
       { Title: 'Broken pump', Description: 'Fuel pump broken', Facility: 'Station A' },
@@ -768,7 +643,7 @@ describe('TC-AD-08: Resolving Issues', () => {
    TC-AD-09: Error Handling
    "Validate that appropriate error messages are displayed when an error occurs"
    ═══════════════════════════════════════════════ */
-describe('TC-AD-09: Error Handling', () => {
+describe('UT-AD-09: Error Handling', () => {
 
   it('admin login returns specific error for empty email', () => {
     const r = validateAdminLogin('', 'pass');

@@ -45,40 +45,70 @@ form?.addEventListener('submit', async (e) => {
   const user = auth.currentUser;
   const uid = user.uid;
 
-  // 1) Operator koleksiyonunda var mı kontrol et
-  const operatorSnap = await getDoc(doc(db, "Operator", uid));
+  try {
+    // 1) Operator koleksiyonunda var mı kontrol et
+    const operatorSnap = await getDoc(doc(db, "Operator", uid));
 
-  if (!operatorSnap.exists()) {
-    // 2) operatorRequests'te başvurusu var mı kontrol et
-    const reqQuery = query(
-      collection(db, "operatorRequests"),
-      where("email", "==", validation.email)
-    );
-    const reqSnap = await getDocs(reqQuery);
+    if (!operatorSnap.exists()) {
+      // 2) operatorRequests'te başvurusu var mı kontrol et
+      const reqQuery = query(
+        collection(db, "operatorRequests"),
+        where("email", "==", validation.email)
+      );
+      const reqSnap = await getDocs(reqQuery);
 
-    if (!reqSnap.empty) {
-      const reqData = reqSnap.docs[0].data();
-      const status = (reqData.status || "").toLowerCase();
+      if (!reqSnap.empty) {
+        const reqData = reqSnap.docs[0].data();
+        const status = (reqData.status || "").toLowerCase();
 
-      if (status === "rejected") {
-        showError("Your application has been rejected. You cannot access the system.");
-        return;
+        if (status === "rejected") {
+          showError("Your application has been rejected. You cannot access the system.");
+          return;
+        }
+        if (status === "pending") {
+          pendingBox.hidden = false;
+          return;
+        }
       }
-      if (status === "pending") {
-        pendingBox.hidden = false;
-        return;
+
+      showError("You are not registered as an operator.");
+      return;
+    }
+
+    const session = buildOperatorSession(user, validation.email);
+
+    localStorage.setItem('operator_session', 'true');
+    localStorage.setItem('operator_user_id', session.operatorId);
+    localStorage.setItem('operator_user_email', session.operatorEmail);
+    localStorage.setItem('operator_user_name', session.operatorName);
+    window.location.href = './index.html';
+  } catch (firestoreErr) {
+    // Firestore permission denied — kullanıcı Operator koleksiyonunu okuyamıyor
+    // operatorRequests'ten durumunu kontrol et
+    try {
+      const reqQuery = query(
+        collection(db, "operatorRequests"),
+        where("email", "==", validation.email)
+      );
+      const reqSnap = await getDocs(reqQuery);
+
+      if (!reqSnap.empty) {
+        const reqData = reqSnap.docs[0].data();
+        const status = (reqData.status || "").toLowerCase();
+
+        if (status === "rejected") {
+          showError("Your application has been rejected. You cannot access the system.");
+          return;
+        }
+        if (status === "pending") {
+          pendingBox.hidden = false;
+          return;
+        }
       }
+    } catch (reqErr) {
+      // operatorRequests de okunamıyorsa genel hata göster
     }
 
     showError("You are not registered as an operator.");
-    return;
   }
-
-  const session = buildOperatorSession(user, validation.email);
-
-  localStorage.setItem('operator_session', 'true');
-  localStorage.setItem('operator_user_id', session.operatorId);
-  localStorage.setItem('operator_user_email', session.operatorEmail);
-  localStorage.setItem('operator_user_name', session.operatorName);
-  window.location.href = './index.html';
 });

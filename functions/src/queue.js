@@ -425,6 +425,7 @@ exports.cancelQueueEntry = onRequest(
                     );
                 }
             });
+            return res.status(200).json({ success: true, queueEntryId });
         } catch (err) {
             console.error("cancelQueueEntry error:", err);
 

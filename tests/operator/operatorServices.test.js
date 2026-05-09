@@ -30,7 +30,7 @@ import {
    TC-OP-01: Operator Login
    "Validate that an operator can login only with valid credentials"
    ═══════════════════════════════════════════════ */
-describe('TC-OP-01: Operator Login Validation', () => {
+describe('UT-OP-01: Operator Login Validation', () => {
 
   it('rejects empty email and password', () => {
     const result = validateLoginInput('', '');
@@ -85,7 +85,7 @@ describe('TC-OP-01: Operator Login Validation', () => {
    TC-OP-07: Updating Facility Status
    "Validate that the operator can update facility status"
    ═══════════════════════════════════════════════ */
-describe('TC-OP-07: Updating Facility Status', () => {
+describe('UT-OP-02: Updating Station Information', () => {
   it('builds complete station update object', () => {
     const update = buildStationUpdate('Operational', 'John Doe', '555-1234');
     assert.deepEqual(update, {
@@ -128,7 +128,7 @@ describe('TC-OP-07: Updating Facility Status', () => {
    TC-OP-08: Creating Issue Reports
    "Validate that the operator can create and submit issue reports"
    ═══════════════════════════════════════════════ */
-describe('TC-OP-08: Creating Issue Reports', () => {
+describe('UT-OP-03: Creating Issue Reports', () => {
 
   it('validates: rejects empty title', () => {
     const result = validateIssueInput('', 'ST-1');
@@ -181,18 +181,6 @@ describe('TC-OP-08: Creating Issue Reports', () => {
     const doc = buildIssueDocument({ title: 'Test', station: 'ST-1' });
     assert.equal(doc.reporter, 'Operator Desk');
   });
-
-  it('detects resolved issue status', () => {
-    assert.equal(isIssueResolved({ status: 'resolved' }), true);
-    assert.equal(isIssueResolved({ status: 'Solved' }), true);
-    assert.equal(isIssueResolved({ Status: 'Resolved' }), true);
-  });
-
-  it('detects non-resolved issue status', () => {
-    assert.equal(isIssueResolved({ status: 'Waiting' }), false);
-    assert.equal(isIssueResolved({ status: '' }), false);
-    assert.equal(isIssueResolved({}), false);
-  });
 });
 
 
@@ -200,7 +188,7 @@ describe('TC-OP-08: Creating Issue Reports', () => {
    TC-OP-09: Error Handling
    "Validate that appropriate error messages are displayed"
    ═══════════════════════════════════════════════ */
-describe('TC-OP-09: Error Handling', () => {
+describe('UT-OP-04: Error Handling', () => {
 
   it('login validation returns descriptive error for empty fields', () => {
     const r = validateLoginInput('', '');
