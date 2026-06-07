@@ -49,7 +49,7 @@ describe("IT-ABU-01", () => {
         };
         const reqRef = await db.collection("operatorRequests").add(requestData);
         const normalized = normalizeRequest(reqRef.id,requestData);
-        //await new Promise((r) => setTimeout(r, 30000));
+        await new Promise((r) => setTimeout(r, 30000));
         const approvalDoc = buildApprovalDocument(normalized);
         await db.collection("Operator").doc(reqRef.id).set(approvalDoc);
         await db.collection("operatorRequests").doc(reqRef.id).delete();
@@ -72,7 +72,7 @@ describe("IT-ABU-01", () => {
             status: "pending",
         };
         const reqRef = await db.collection("operatorRequests").add(requestData);
-        //await new Promise((r) => setTimeout(r, 30000));
+        await new Promise((r) => setTimeout(r, 30000));
         await db.collection("operatorRequests").doc(reqRef.id).delete();
 
         const operatorSnap = await db.collection("Operator").doc(reqRef.id).get();
@@ -109,7 +109,7 @@ describe("IT-ABU-02",()=>{
             Status: "Active",
         };
         const carrierRef = await db.collection("Carrier").add(carrierData);
-        //await new Promise((r) => setTimeout(r, 30000));
+        await new Promise((r) => setTimeout(r, 30000));
         const blockPayload = buildBlockPayload(
             "Kural ihlali",       // reason
             "Hız limiti aşıldı",  // message
@@ -136,7 +136,7 @@ describe("IT-ABU-02",()=>{
             BlockMessage: "Araç hasarlı",
             BlockUntil: "2026-07-01",
         });
-        //await new Promise((r) => setTimeout(r, 30000));
+        await new Promise((r) => setTimeout(r, 30000));
         const unblockPayload = buildUnblockPayload("admin-uid-123");
         await db.collection("Carrier").doc(carrierRef.id).update(unblockPayload);
 
@@ -160,7 +160,7 @@ describe("IT-ABU-02",()=>{
         const snap = await db.collection("Carrier").doc(carrierRef.id).get();
         const carrier = normalizeCarrier(snap.id,snap.data());
         expect(isBlockExpired(carrier)).toBe(true);
-        //await new Promise((r) => setTimeout(r, 30000));
+        await new Promise((r) => setTimeout(r, 30000));
         if(isBlockExpired(carrier)){
             const unblockPayload = buildUnblockPayload("system-auto");
             await db.collection("Carrier").doc(carrierRef.id).update(unblockPayload);
@@ -207,7 +207,7 @@ describe("IT-ABU-03",()=>{
         });
         const removal = validateStationRemoval(["st-a"]);
         expect(removal.valid).toBe(true);
-        //await new Promise((r) => setTimeout(r, 30000));
+        await new Promise((r) => setTimeout(r, 30000));
         for(const id of removal.ids){
             await db.collection("Station").doc(id).delete();
         }
@@ -239,7 +239,7 @@ describe("IT-ABU-04", () => {
             weekendStart: "09:00",
             weekendEnd: "14:00",
         });
-        //await new Promise((r) => setTimeout(r, 30000));
+        await new Promise((r) => setTimeout(r, 30000));
         await db.collection("Facility").doc("fac-1").update(update);
         const snap = await db.collection("Facility").doc("fac-1").get();
         expect(snap.data().Name).toBe("Esenler Logistic Center");

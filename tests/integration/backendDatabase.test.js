@@ -103,6 +103,8 @@ describe("IT-BD-02:Start Service",()=>{
                 slotStart: "2026-05-05T10:00:00Z", slotEnd: "2026-05-05T10:15:00Z",
             }),
         });
+        await new Promise((r) => setTimeout(r, 30000));
+
         const enterData = await enterRes.json();
         
         const res = await fetch(`${BASE_URL}/startService`, {
@@ -177,11 +179,15 @@ describe("IT-BD-03: Complete Service",()=>{
                 slotStart: "2026-05-04T10:00:00Z", slotEnd: "2026-05-04T10:15:00Z",
             }),
         })).json();
+        await new Promise((r) => setTimeout(r, 30000));
+
         await fetch(`${BASE_URL}/startService`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ queueEntryId: enterData.queueEntryId, operatorId: "OP-1" }),
         });
+        await new Promise((r) => setTimeout(r, 30000));
+
         const res = await fetch(`${BASE_URL}/completeService`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -203,7 +209,7 @@ describe("IT-BD-03: Complete Service",()=>{
         expect(sSnap.data().completedJobsCount).toBe(1);
         expect(sSnap.data().totalServiceTimeMin).toBeGreaterThan(0);
         expect(sSnap.data().avgServiceTimeMin).toBeGreaterThan(0);
-    },30000);
+    },90000);
 });
 describe("IT-BD-04: Cancel Queue Entry",()=>{
     test("Queued entry -> Cancelled",async()=>{
@@ -215,6 +221,8 @@ describe("IT-BD-04: Cancel Queue Entry",()=>{
                 slotStart: "2026-05-04T10:00:00Z", slotEnd: "2026-05-04T10:15:00Z",
             }),
         })).json();
+        await new Promise((r) => setTimeout(r, 30000));
+
         const res = await fetch(`${BASE_URL}/cancelQueueEntry`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -238,6 +246,7 @@ describe("IT-BD-04: Cancel Queue Entry",()=>{
                 slotStart: "2026-05-04T10:00:00Z", slotEnd: "2026-05-04T10:15:00Z",
             }),
         })).json();
+        await new Promise((r) => setTimeout(r, 30000));
         await fetch(`${BASE_URL}/startService`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
