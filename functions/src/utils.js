@@ -53,7 +53,8 @@ function muPerMinFromAvgServiceTime(avgServiceTimeMin) {
 
 // M/M/1 kullanarak bekleme süresi hesaplamak için
 function mm1Wq(lambdaPerMin, muPerMin) {
-  if (muPerMin <= 0) return { stable: false, rho: Infinity, Wq: Infinity };
+  // Henüz servis verisi yoksa (mu=0 veya lambda=0) bekleme süresi 0 kabul edilir
+  if (muPerMin <= 0 || lambdaPerMin <= 0) return { stable: true, rho: 0, Wq: 0 };
   const rho = lambdaPerMin / muPerMin;
   if (rho >= 1) return { stable: false, rho, Wq: Infinity };
   const Wq = lambdaPerMin / (muPerMin * (muPerMin - lambdaPerMin));
@@ -70,8 +71,9 @@ function optimalTruckPerSlot(avgServiceTimeMin, slotTimeInterval=15, targetUtili
   if(muPerMin<=0) return 0;
   const lambdaTarget = lambdaTargetPerMin(targetUtilization, muPerMin);
   const slotCapacity = lambdaTarget * slotTimeInterval;
-  const capacity = Math.floor(slotCapacity);
-  return Math.max(0,capacity);
+  const capacity = Math.round(slotCapacity);
+  // Servis süresi > slot süresi olsa bile minimum 1 truck kabul edilebilir
+  return Math.max(1, capacity);
 }
 
 

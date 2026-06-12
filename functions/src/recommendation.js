@@ -60,7 +60,7 @@ exports.getStationsMM1ForSlotStart = onRequest(
                     const pastArrivals = historyData.data().count || 0;
                     const lambda = pastArrivals / (HISTORY_DAYS * SLOT_INTERVAL_MIN);
                     const wq = mm1Wq(lambda, mu);
-                    const approximatedWaitingTime = wq.stable ? wq.Wq : Infinity;
+                    const approximatedWaitingTime = wq.stable ? wq.Wq : 0;
 
                     return {
                         stationId,

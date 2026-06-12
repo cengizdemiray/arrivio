@@ -525,7 +525,7 @@ exports.getStationQueue = onRequest(
                 .limit(LIM)
                 .get();
 
-            const queue = snap.docs.map((d) => {
+            const queueRaw = snap.docs.map((d) => {
                 const q = d.data() || {};
                 return {
                     id: d.id,
@@ -537,11 +537,34 @@ exports.getStationQueue = onRequest(
                     startedAt: toMillis(q.startedAt),
                     completedAt: toMillis(q.completedAt),
                     createdAt: toMillis(q.createdAt),
-                    // UI’da lazımsa ekstra alanlar:
                     truckPlate: q.truckPlate || q.truck || "",
                     commodity: q.commodity || "",
                 };
             });
+
+            // Carrier ad/plaka bilgilerini toplu çek (admin SDK ile, kural sorunu yok)
+            const uniqueCarrierIds = [...new Set(queueRaw.map((x) => x.carrierId).filter(Boolean))];
+            const carrierDocs = await Promise.all(
+                uniqueCarrierIds.map((id) => db.collection("Carrier").doc(id).get())
+            );
+            const carrierLookup = {};
+            carrierDocs.forEach((snap) => {
+                if (snap.exists) {
+                    const d = snap.data();
+                    const firstName = String(d.Name ?? d.name ?? "").trim();
+                    const lastName = String(d.Surname ?? d.surname ?? "").trim();
+                    const fullName = [firstName, lastName].filter(Boolean).join(" ") || snap.id;
+                    carrierLookup[snap.id] = {
+                        carrierName: fullName,
+                        carrierPlate: String(d.Vehicle_Plate ?? d.plate ?? ""),
+                    };
+                }
+            });
+
+            const queue = queueRaw.map((entry) => ({
+                ...entry,
+                ...(carrierLookup[entry.carrierId] || {}),
+            }));
 
             const inServiceCount = queue.filter((x) => x.queueStatus === "InProgress").length;
 

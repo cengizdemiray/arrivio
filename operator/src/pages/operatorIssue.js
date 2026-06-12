@@ -63,24 +63,7 @@ export async function renderIssueCreateView(root, deps) {
           </form>
         </div>
       </div>
-      <aside class="issue-create-side">
-        <div class="summary-card">
-          <h4>Quick tips</h4>
-          <ul class="recent-issues">
-            <li><strong>Priority</strong><div class="meta">High = outage; Medium = delay; Low = minor improvement</div></li>
-            <li><strong>Station code</strong><div class="meta">Selecting the code matches admin reports</div></li>
-          </ul>
-        </div>
-        <div class="summary-card">
-          <h4>Last created</h4>
-          <ul id="recentIssues" class="recent-issues"></ul>
-          <div id="recentDetail" class="mini-card" style="margin-top:10px;display:none;">
-            <div id="recentDetailTitle" style="font-weight:700;"></div>
-            <div id="recentDetailMeta" class="meta" style="margin-top:6px;"></div>
-            <div id="recentDetailDesc" style="margin-top:8px;color:#475569;"></div>
-          </div>
-        </div>
-      </aside>
+      <aside class="issue-create-side" style="display:none;"></aside>
     </div>
   `;
 

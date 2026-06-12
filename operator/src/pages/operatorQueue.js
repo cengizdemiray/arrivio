@@ -102,6 +102,14 @@ export function renderQueueManagerView(viewRoot, options = {}) {
   let timer = null;
   let lastRefresh = null;
 
+  function carrierCell(carrierName, carrierPlate, carrierId) {
+    if (carrierName && carrierName !== carrierId) {
+      return `<span style="font-weight:500">${escapeHtml(carrierName)}</span>${carrierPlate ? `<br><span style="font-size:0.78em;color:var(--clr-text-muted,#888)">${escapeHtml(carrierPlate)}</span>` : ""}`;
+    }
+    // ad bulunamadıysa gri küçük ID göster
+    return `<span style="color:#aaa;font-size:0.8em">${escapeHtml(carrierId || "—")}</span>`;
+  }
+
   //station listesini çeken fonksiyon
   async function fetchStations() {
     const data = await post("getActiveStations", {});
@@ -126,16 +134,21 @@ export function renderQueueManagerView(viewRoot, options = {}) {
 
   async function fetchQueue(stationId) {
     const data = await post("getStationQueue", { stationId });
-    const array = Array.isArray(data) ? data : data.queue || [];
-    const queue = (data.queue || []).map((q) => ({
-      id: q.id,
-      carrierId: q.carrierId,
-      slotKey: q.slotKey || "",
-      queueStatus: q.queueStatus,
-      createdAt: q.createdAt,
-      startedAt: q.startedAt,
-      completedAt: q.completedAt,
-    }));
+    const ACTIVE_STATUSES = ["Queued", "InProgress"];
+    const queue = (data.queue || [])
+      .map((q) => ({
+        id: q.id,
+        carrierId: q.carrierId,
+        carrierName: q.carrierName || "",
+        carrierPlate: q.carrierPlate || "",
+        slotKey: q.slotKey || "",
+        queueStatus: String(q.queueStatus || "").trim(), // " Queued" gibi boşluklu değerleri normalize et
+        createdAt: q.createdAt,
+        startedAt: q.startedAt,
+        completedAt: q.completedAt,
+      }))
+      // Cancelled / Completed girişler UI'da görünmesin (backend filtresine ek güvence)
+      .filter((q) => ACTIVE_STATUSES.includes(q.queueStatus));
 
     const idx = findStationIndex(stationId);
     if (idx != -1) {
@@ -244,7 +257,12 @@ export function renderQueueManagerView(viewRoot, options = {}) {
       <div class="oq-inprog">
         <div>
           <div class="small">IN PROGRESS</div>
-          <div class="who">${inProg ? escapeHtml(inProg.carrierId || inProg.id) : "—"}</div>
+          ${(() => {
+            if (!inProg) return `<div class="who">—</div>`;
+            const name = inProg.carrierName || inProg.carrierId || "—";
+            const plate = inProg.carrierPlate || "";
+            return `<div class="who">${escapeHtml(name)}</div>${plate ? `<div class="small" style="margin-top:2px;">${escapeHtml(plate)}</div>` : ""}`;
+          })()}
           <div class="small" style="margin-top:6px;">
             Started: ${inProg ? hhmm(inProg.startedAt) : "--:--"} · Slot: ${inProg ? escapeHtml(inProg.slotKey) : ""}
           </div>
@@ -275,7 +293,7 @@ export function renderQueueManagerView(viewRoot, options = {}) {
           return `
                 <tr>
                   <td>${i + 1}</td>
-                  <td>${escapeHtml(item.carrierId || item.id)}</td>
+                  <td>${carrierCell(item.carrierName, item.carrierPlate, item.carrierId)}</td>
                   <td>${escapeHtml(item.slotKey || "")}</td>
                   <td>${hhmm(item.createdAt)}</td>
                   <td>${escapeHtml(item.queueStatus)}</td>

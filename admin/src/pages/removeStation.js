@@ -138,8 +138,9 @@ export function initRemoveStation(root) {
       setMsg("Deleting...", "info");
       for (const id of result.ids) {
         await deleteDoc(doc(db, "Station", id));
-        selected.delete(id);
       }
+      selected.clear();
+      selectAll.checked = false;
       setMsg("Deleted ✅", "success");
     } catch (err) {
       console.error("Delete failed:", err);
@@ -153,6 +154,9 @@ export function initRemoveStation(root) {
     qStations,
     (snap) => {
       stationsCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      // Artık olmayan station ID'lerini selected'dan temizle
+      const existingIds = new Set(stationsCache.map(s => s.id));
+      selected.forEach(id => { if (!existingIds.has(id)) selected.delete(id); });
       render();
     },
     (err) => {
