@@ -1,4 +1,16 @@
 {
+  "hosting": [
+    {
+      "target": "admin",
+      "public": "admin",
+      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"]
+    },
+    {
+      "target": "operator",
+      "public": "operator",
+      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"]
+    }
+  ],
   "functions": [
     {
       "source": "functions",

@@ -532,6 +532,7 @@ exports.getStationQueue = onRequest(
                     stationId: q.stationId || stationId,
                     carrierId: q.carrierId || null,
                     slotKey: q.slotKey || null,
+                    slotStartAt: toMillis(q.slotStartAt),
                     queueStatus: normStatus(q.queueStatus) || "Queued",
                     queuedAt: toMillis(q.queuedAt),
                     startedAt: toMillis(q.startedAt),

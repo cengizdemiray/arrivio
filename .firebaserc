@@ -3,6 +3,17 @@
     "prod": "arrivio-271aa",
     "default": "arrivio-271aa"
   },
-  "targets": {},
+  "targets": {
+    "arrivio-271aa": {
+      "hosting": {
+        "admin": [
+          "arrivio-admin"
+        ],
+        "operator": [
+          "arrivio-operator"
+        ]
+      }
+    }
+  },
   "etags": {}
 }

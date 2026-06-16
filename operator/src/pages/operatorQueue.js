@@ -88,6 +88,22 @@ export function renderQueueManagerView(viewRoot, options = {}) {
     return `${hh}:${mm}`;
   }
 
+  const ddmmyyyy = (v) => {
+    // slotKey genelde "YYYY-MM-DD-HH:mm" ya da ISO string olabilir; önce doğrudan parse dene
+    const d = asDate(v);
+    if (d) {
+      const dd = String(d.getDate()).padStart(2, "0");
+      const mo = String(d.getMonth() + 1).padStart(2, "0");
+      return `${dd}/${mo}/${d.getFullYear()}`;
+    }
+    // asDate başaramazsa slotKey string'inden YYYY-MM-DD kısmını çekmeye çalış
+    if (typeof v === "string") {
+      const m = v.match(/(\d{4})-(\d{2})-(\d{2})/);
+      if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+    }
+    return "—";
+  }
+
   const escapeHtml = (str) =>
     String(str ?? "")
       .replaceAll("&", "&amp;")
@@ -134,6 +150,7 @@ export function renderQueueManagerView(viewRoot, options = {}) {
 
   async function fetchQueue(stationId) {
     const data = await post("getStationQueue", { stationId });
+    console.log("[fetchQueue] raw queue sample:", JSON.stringify((data.queue || []).slice(0, 2), null, 2));
     const ACTIVE_STATUSES = ["Queued", "InProgress"];
     const queue = (data.queue || [])
       .map((q) => ({
@@ -142,6 +159,7 @@ export function renderQueueManagerView(viewRoot, options = {}) {
         carrierName: q.carrierName || "",
         carrierPlate: q.carrierPlate || "",
         slotKey: q.slotKey || "",
+        slotStartAt: q.slotStartAt || null,
         queueStatus: String(q.queueStatus || "").trim(), // " Queued" gibi boşluklu değerleri normalize et
         createdAt: q.createdAt,
         startedAt: q.startedAt,
@@ -274,7 +292,7 @@ export function renderQueueManagerView(viewRoot, options = {}) {
       <table class="table">
         <thead>
           <tr>
-            <th>#</th><th>Carrier</th><th>Slot</th><th>Created</th><th>Status</th><th>Actions</th>
+            <th>#</th><th>Carrier</th><th>Slot</th><th>Slot Date</th><th>Status</th><th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -295,7 +313,7 @@ export function renderQueueManagerView(viewRoot, options = {}) {
                   <td>${i + 1}</td>
                   <td>${carrierCell(item.carrierName, item.carrierPlate, item.carrierId)}</td>
                   <td>${escapeHtml(item.slotKey || "")}</td>
-                  <td>${hhmm(item.createdAt)}</td>
+                  <td>${ddmmyyyy(item.slotStartAt)}</td>
                   <td>${escapeHtml(item.queueStatus)}</td>
                   <td>
                     <div class="actions">
