@@ -74,7 +74,7 @@ function renderStatsHTML(stations) {
 
             <dl class="stats-v2-list">
               <div><dt>Mu / min</dt><dd>${formatNumber(station.muPerMin, 4)}</dd></div>
-              <div><dt>Lambda Target / min</dt><dd>${formatNumber(station.lambdaTargetPerMin, 4)}</dd></div>
+              <div><dt>Lambda / min</dt><dd>${formatNumber(station.lambda, 4)}</dd></div>
               <div><dt>Target Utilization</dt><dd>${formatNumber(station.targetUtilization, 2)}</dd></div>
               <div><dt>Slot Duration</dt><dd>${station.slotTimeInterval ?? "-"} min</dd></div>
               <div><dt>Optimal Trucks / Slot</dt><dd>${station.optimalTruckPerSlot ?? "-"}</dd></div>
